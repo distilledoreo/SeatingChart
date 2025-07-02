@@ -97,7 +97,13 @@
             const [isEditing, setIsEditing] = useState(false);
             const [size, setSize] = useState(guest.size);
             const inputRef = useRef(null);
-            useEffect(() => { if (isEditing) { inputRef.current.focus(); inputRef.current.select(); } }, [isEditing]);
+            useEffect(() => {
+                // Added a check for inputRef.current to ensure it's not null before accessing
+                if (isEditing && inputRef.current) {
+                    inputRef.current.focus();
+                    inputRef.current.select();
+                }
+            }, [isEditing]);
             const handleSave = () => {
                 setIsEditing(false);
                 const newSize = parseInt(size, 10);
@@ -452,8 +458,9 @@
                         try {
                             const data = new Uint8Array(event.target.result);
                             const workbook = XLSX.read(data, { type: 'array' });
-                            const sheetName = workbook.SheetNames[0];
-                            const worksheet = XLSX.Sheets[sheetName];
+                            const sheetName = workbook.SheetNames[0]; // This gets the actual sheet name
+                            // Corrected: Access worksheet from the workbook object, not global XLSX.Sheets
+                            const worksheet = workbook.Sheets[sheetName]; 
                             const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
                             processGuestData(jsonData);
                         } catch (err) {
