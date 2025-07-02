@@ -250,9 +250,8 @@
             );
         };
 
-        const ReservationDetailsModal = ({ modalData, onClose, onUnassign, onReassign }) => {
-            if (!modalData) return null;
-            const { table, guests } = modalData;
+        const ReservationDetailsModal = ({ table, guests, onClose, onUnassign, onReassign }) => {
+            if (!table) return null;
             return (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={onClose}>
                     <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
@@ -586,18 +585,12 @@
                 if (selectedGuestId) {
                     assignGuestToTable(selectedGuestId, table.internalId);
                 } else {
-                    const assignmentInfo = tableAssignments[table.internalId] || { guests: [] };
-                    setModalData({ table, guests: assignmentInfo.guests });
+                    setModalData({ tableId: table.internalId });
                 }
             };
 
             const handleUnassignInModal = (guestId) => {
                 unassignGuest(guestId);
-                setModalData(prev => {
-                    if (!prev) return null;
-                    const newGuests = prev.guests.filter(g => g.id !== guestId);
-                    return { ...prev, guests: newGuests };
-                });
             };
 
             const handleReassignInModal = (guestId) => {
@@ -618,6 +611,8 @@
              };
              
             const guestToConfirm = guests.find(g => g.id === confirmModalState.guestId);
+            const modalTable = modalData ? tables.find(t => t.internalId === modalData.tableId) : null;
+            const modalGuests = modalData ? tableAssignments[modalData.tableId]?.guests || [] : [];
 
             return (
                 <div className="bg-gray-100 h-full font-sans flex flex-col">
@@ -630,7 +625,7 @@
                     >
                         Are you sure you want to remove the party "<strong>{guestToConfirm?.name}</strong>"? This action cannot be undone.
                     </ConfirmationModal>
-                    <ReservationDetailsModal modalData={modalData} onClose={() => setModalData(null)} onUnassign={handleUnassignInModal} onReassign={handleReassignInModal} />
+                    <ReservationDetailsModal table={modalTable} guests={modalGuests} onClose={() => setModalData(null)} onUnassign={handleUnassignInModal} onReassign={handleReassignInModal} />
                     <AddPartyModal isOpen={isAddPartyModalOpen} onClose={() => setIsAddPartyModalOpen(false)} onAddParty={handleAddParty} />
 
                     <header className="landscape-header p-4 sm:p-6 lg:p-4 w-full flex-shrink-0">
