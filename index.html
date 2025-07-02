@@ -104,6 +104,12 @@
                     inputRef.current.select();
                 }
             }, [isEditing]);
+            // keep local size state in sync with guest prop
+            useEffect(() => {
+                if (!isEditing) {
+                    setSize(guest.size);
+                }
+            }, [guest.size, isEditing]);
             const handleSave = () => {
                 setIsEditing(false);
                 const newSize = parseInt(size, 10);
