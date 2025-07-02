@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visual Seating Planner</title>
+    <script src="https://unpkg.com/react@17/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        /* Simple keyframes for animations */
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-1px, 0, 0); }
+            20%, 80% { transform: translate3d(2px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+            40%, 60% { transform: translate3d(4px, 0, 0); }
+        }
+        .animate-shake {
+            animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+        }
+        /* Keyframes for notification slide-in and slide-out */
+        @keyframes slideInDown {
+            from { transform: translateY(-100%); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        @keyframes slideOutUp {
+            from { transform: translateY(0); opacity: 1; }
+            to { transform: translateY(-100%); opacity: 0; }
+        }
+        .animate-slide-in-down {
+            animation: slideInDown 0.5s ease-out forwards;
+        }
+        .animate-slide-out-up {
+            animation: slideOutUp 0.5s ease-in forwards;
+        }
+        /* Ensure the app fills the viewport */
+        html, body, #root {
+            height: 100%;
+            margin: 0;
+        }
+        @media (min-width: 1024px) {
+            #root {
+                overflow: hidden; /* Prevent body scroll on desktop */
+            }
+        }
+
+        /* Custom styles for mobile landscape orientation */
+        @media (orientation: landscape) and (max-height: 500px) {
+            /* Make header more compact */
+            .landscape-header {
+                padding: 0.25rem 1rem !important;
+            }
+            .landscape-header h1 {
+                font-size: 1.125rem !important; /* text-lg */
+            }
+            .landscape-header .reset-button {
+                padding: 0.25rem 0.75rem !important;
+                font-size: 0.875rem !important;
+            }
+
+            /* Hide the mobile view switcher */
+            .mobile-view-switcher {
+                display: none !important;
+            }
+
+            /* Make main content area horizontal and reduce padding */
+            .landscape-main {
+                flex-direction: row !important;
+                padding: 0.5rem !important;
+                gap: 0.5rem !important;
+            }
+
+            /* Force both list and map to be visible and side-by-side */
+            .guest-list-panel, .map-panel {
+                display: flex !important; /* Override the JS-based hiding */
+                flex-basis: 50%; /* Each panel takes half the width */
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useMemo, useRef, useEffect } = React;
+
+        // --- Helper Components ---
+
+        const UserIcon = ({ className }) => (
+          <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" /></svg>
+        );
+
+        const EditablePartySize = ({ guest, onSizeChange }) => {
+            const [isEditing, setIsEditing] = useState(false);
+            const [size, setSize] = useState(guest.size);
+            const inputRef = useRef(null);
+            useEffect(() => { if (isEditing) { inputRef.current.focus(); inputRef.current.select(); } }, [isEditing]);
+            const handleSave = () => {
+                setIsEditing(false);
+                const newSize = parseInt(size, 10);
+                if (!isNaN(newSize) && newSize >= 0 && newSize !== guest.size) { onSizeChange(guest.id, newSize); }
+                else { setSize(guest.size); }
+            };
+            const handleKeyDown = (e) => {
+                if (e.key === 'Enter') handleSave();
+                else if (e.key === 'Escape') { setSize(guest.size); setIsEditing(false); }
+            };
+            return (
+                <div className="flex items-center space-x-1 text-indigo-600">
+                    <UserIcon className="w-5 h-5" />
+                    {isEditing ? (
+                        <input ref={inputRef} type="number" value={size} onChange={(e) => setSize(e.target.value)} onBlur={handleSave} onKeyDown={handleKeyDown} className="w-12 text-center font-bold text-lg bg-white border border-indigo-300 rounded" min="0"/>
+                    ) : (
+                        <span className="font-bold text-lg cursor-pointer px-2 py-1 rounded hover:bg-indigo-100" onClick={(e) => { e.stopPropagation(); setIsEditing(true);}}>{guest.size}</span>
+                    )}
+                </div>
+            );
+        };
+
+        const EditableNote = ({ guest, onNotesChange }) => {
+            const [isEditing, setIsEditing] = useState(false);
+            const [note, setNote] = useState(guest.notes || '');
+            const textareaRef = useRef(null);
+            useEffect(() => {
+                if (isEditing && textareaRef.current) {
+                    const textarea = textareaRef.current;
+                    textarea.focus();
+                    textarea.style.height = 'auto';
+                    textarea.style.height = `${textarea.scrollHeight}px`;
+                }
+            }, [isEditing]);
+            const handleSave = () => { setIsEditing(false); if (note !== guest.notes) { onNotesChange(guest.id, note); } };
+            const handleKeyDown = (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSave(); }
+                else if (e.key === 'Escape') { setNote(guest.notes || ''); setIsEditing(false); }
+            };
+            const handleTextChange = (e) => { setNote(e.target.value); e.target.style.height = 'auto'; e.target.style.height = `${e.target.scrollHeight}px`; };
+            return (
+                <div className="mt-2 text-sm text-gray-700 w-full" onClick={(e) => e.stopPropagation()}>
+                    {isEditing ? (
+                        <textarea ref={textareaRef} value={note} onChange={handleTextChange} onBlur={handleSave} onKeyDown={handleKeyDown} className="w-full p-1 text-sm bg-white border border-indigo-300 rounded resize-none" placeholder="Add a note..." rows="1"/>
+                    ) : (
+                        <div onClick={() => setIsEditing(true)} className={`w-full p-1 rounded min-h-[2.5rem] cursor-pointer whitespace-pre-wrap ${note ? 'text-gray-700' : 'text-gray-400 italic'}`}>
+                            {note || 'Add a note...'}
+                        </div>
+                    )}
+                </div>
+            );
+        };
+        
+        // --- Main Components ---
+
+        const Notification = ({ message, type = 'info', onDismiss }) => {
+            const [isExiting, setIsExiting] = useState(false);
+
+            useEffect(() => {
+                if (message) {
+                    setIsExiting(false);
+                    const timer = setTimeout(() => {
+                        setIsExiting(true);
+                    }, 4500);
+                    const removeTimer = setTimeout(onDismiss, 5000);
+                    return () => {
+                        clearTimeout(timer);
+                        clearTimeout(removeTimer);
+                    };
+                }
+            }, [message, onDismiss]);
+
+            if (!message) return null;
+
+            const bgColor = type === 'error' ? 'bg-red-500' : 'bg-green-500';
+            const animationClass = isExiting ? 'animate-slide-out-up' : 'animate-slide-in-down';
+
+            return (
+                <div className={`fixed top-5 left-1/2 -translate-x-1/2 z-50 p-4 rounded-lg shadow-lg text-white font-semibold ${bgColor} ${animationClass}`}>
+                    {message}
+                </div>
+            );
+        };
+
+        const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, children }) => {
+            if (!isOpen) return null;
+
+            return (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={onClose}>
+                    <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
+                        <h2 className="text-xl font-bold text-gray-800 mb-4">{title}</h2>
+                        <div className="text-gray-600 mb-6">{children}</div>
+                        <div className="flex justify-end space-x-3">
+                            <button onClick={onClose} className="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg hover:bg-gray-300 transition-colors">Cancel</button>
+                            <button onClick={onConfirm} className="bg-red-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-red-700 transition-colors">Confirm</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const GuestCard = ({ guest, onSizeChange, onNotesChange, isSelected, onClick }) => {
+          return (
+            <div onClick={onClick} className={`p-3 mb-2 rounded-lg shadow-md cursor-pointer flex flex-col items-start justify-center text-sm transition-all duration-200 ease-in-out bg-white hover:bg-gray-50 ${isSelected ? 'ring-2 ring-blue-500' : 'ring-1 ring-transparent'}`}>
+              <div className="flex items-center justify-between w-full"><span className="font-semibold text-gray-800">{guest.name}</span><EditablePartySize guest={guest} onSizeChange={onSizeChange} /></div>
+              <EditableNote guest={guest} onNotesChange={onNotesChange} />
+            </div>
+          );
+        };
+
+        const TableVisual = ({ table, assignedGuests, onClick, isSelectedGuest, orientation = 'vertical' }) => {
+            const totalAssigned = assignedGuests.reduce((sum, g) => sum + g.size, 0);
+            const renderChairs = (count, filledCount, layoutClass) => (
+                <div className={`flex ${layoutClass}`}>
+                    {Array.from({ length: count }).map((_, i) => (<div key={i} className={`w-3.5 h-3.5 rounded-sm ${i < filledCount ? 'bg-indigo-500' : 'bg-gray-300'}`}></div>))}
+                </div>
+            );
+            const hoverClass = isSelectedGuest ? 'hover:outline-blue-500 hover:bg-blue-100' : '';
+            return (
+                <div onClick={onClick} className={`p-2 rounded-lg outline outline-2 outline-dashed outline-gray-300 bg-gray-50 transition-all duration-200 cursor-pointer w-28 h-28 flex flex-col items-center justify-center ${hoverClass}`}>
+                    {orientation === 'horizontal' ? (
+                        <div className="flex flex-col items-center justify-center">
+                            {renderChairs(4, totalAssigned, 'gap-2 mb-1')}
+                             <div className="flex items-center gap-1">
+                                {renderChairs(1, Math.max(0, totalAssigned - 4), '')}
+                                <div className="relative bg-red-400 rounded h-10 w-16 flex items-center justify-center text-white font-bold text-sm">{table.displayId}</div>
+                                {renderChairs(1, Math.max(0, totalAssigned - 5), '')}
+                            </div>
+                            {renderChairs(4, Math.max(0, totalAssigned - 6), 'gap-2 mt-1')}
+                        </div>
+                    ) : (
+                         <div className="flex items-center justify-center">
+                            {renderChairs(4, totalAssigned, 'flex-col gap-2 mr-1')}
+                            <div className="flex flex-col items-center gap-1">
+                               {renderChairs(1, Math.max(0, totalAssigned - 4), '')}
+                               <div className="relative bg-red-400 rounded w-10 h-16 flex items-center justify-center text-white font-bold text-sm">{table.displayId}</div>
+                               {renderChairs(1, Math.max(0, totalAssigned - 5), '')}
+                            </div>
+                            {renderChairs(4, Math.max(0, totalAssigned - 6), 'flex-col gap-2 ml-1')}
+                        </div>
+                    )}
+                    <div className="text-center text-xs font-semibold mt-1 text-gray-600">{totalAssigned}/{table.capacity}</div>
+                </div>
+            );
+        };
+
+        const ReservationDetailsModal = ({ modalData, onClose, onUnassign }) => {
+            if (!modalData) return null;
+            const { table, guests } = modalData;
+            return (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={onClose}>
+                    <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+                         <h2 className="text-2xl font-bold text-gray-800 mb-4">Table {table.displayId} Details</h2>
+                        {guests.length > 0 ? (
+                            <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">{guests.map(guest => (<div key={guest.id} className="bg-gray-50 p-4 rounded-lg border"><div className="flex justify-between items-start"><h3 className="font-bold text-lg text-gray-900">{guest.name}</h3><div className="flex items-center space-x-2"><div className="flex items-center space-x-1 text-indigo-600"><UserIcon className="w-5 h-5"/><span className="font-bold text-lg">{guest.size}</span></div><button onClick={() => onUnassign(guest.id)} className="bg-red-500 text-white text-xs font-bold px-2 py-1 rounded hover:bg-red-600">Unassign</button></div></div>{guest.notes && <p className="text-gray-600 mt-2 whitespace-pre-wrap"><strong>Notes:</strong> {guest.notes}</p>}</div>))}</div>
+                        ) : (<p className="text-gray-600">This table is currently empty.</p>)}
+                        <button onClick={onClose} className="mt-6 w-full bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-700 transition-colors">Close</button>
+                    </div>
+                </div>
+            );
+        };
+
+        const AddPartyModal = ({ isOpen, onClose, onAddParty }) => {
+            const [name, setName] = useState('');
+            const [size, setSize] = useState('');
+            if (!isOpen) return null;
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                if (name && size > 0) { onAddParty(name, parseInt(size, 10)); setName(''); setSize(''); onClose(); }
+            };
+            return (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={onClose}>
+                    <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
+                        <h2 className="text-2xl font-bold text-gray-800 mb-6">Add New Party</h2>
+                        <div className="space-y-4">
+                            <div><label htmlFor="partyName" className="block text-sm font-medium text-gray-700">Party Name</label><input type="text" id="partyName" value={name} onChange={(e) => setName(e.target.value)} required className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" /></div>
+                            <div><label htmlFor="partySize" className="block text-sm font-medium text-gray-700">Party Size</label><input type="number" id="partySize" value={size} onChange={(e) => setSize(e.target.value)} required min="1" className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" /></div>
+                        </div>
+                        <div className="mt-6 flex justify-end space-x-3"><button type="button" onClick={onClose} className="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg hover:bg-gray-300 transition-colors">Cancel</button><button type="submit" className="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-700 transition-colors">Add Party</button></div>
+                    </form>
+                </div>
+            );
+        };
+
+        const SettingsMenu = ({ onImportLayout, onImportGuests, onCreateLayout }) => {
+            const [isOpen, setIsOpen] = useState(false);
+            const menuRef = useRef(null);
+
+            useEffect(() => {
+                const handleClickOutside = (event) => {
+                    if (menuRef.current && !menuRef.current.contains(event.target)) {
+                        setIsOpen(false);
+                    }
+                };
+                document.addEventListener("mousedown", handleClickOutside);
+                return () => document.removeEventListener("mousedown", handleClickOutside);
+            }, []);
+
+            return (
+                <div ref={menuRef} className="relative">
+                    <button onClick={() => setIsOpen(!isOpen)} className="bg-indigo-600 text-white font-semibold rounded-md p-2 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        Menu
+                    </button>
+                    {isOpen && (
+                        <div className="origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-20">
+                            <div className="py-1" role="menu" aria-orientation="vertical" aria-labelledby="options-menu">
+                                <a href="#" onClick={(e) => { e.preventDefault(); onImportLayout(); setIsOpen(false); }} className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">Import Layout</a>
+                                <a href="#" onClick={(e) => { e.preventDefault(); onImportGuests(); setIsOpen(false); }} className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">Import Guests</a>
+                                <a href="LayoutCreator.html" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">Create Layout</a>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const ZoomControls = ({ onZoomIn, onZoomOut, onReset }) => {
+            return (
+                <div className="absolute bottom-4 right-4 z-10 flex flex-col gap-2">
+                    <button onClick={onZoomIn} className="bg-gray-700 text-white rounded-full w-10 h-10 flex items-center justify-center shadow-lg hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 text-xl">+</button>
+                    <button onClick={onZoomOut} className="bg-gray-700 text-white rounded-full w-10 h-10 flex items-center justify-center shadow-lg hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 text-xl">-</button>
+                    <button onClick={onReset} className="bg-gray-700 text-white rounded-full w-10 h-10 flex items-center justify-center shadow-lg hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 text-xs">Reset</button>
+                </div>
+            );
+        };
+
+        function App() {
+            const [tables, setTables] = useState([]);
+            const [guests, setGuests] = useState([]);
+            const [assignments, setAssignments] = useState({});
+            const [notification, setNotification] = useState(null);
+            const [selectedGuestId, setSelectedGuestId] = useState(null);
+            const [modalData, setModalData] = useState(null);
+            const [isAddPartyModalOpen, setIsAddPartyModalOpen] = useState(false);
+            const [activeView, setActiveView] = useState('list');
+            const [scale, setScale] = useState(1);
+            const [confirmModalState, setConfirmModalState] = useState({ isOpen: false, guestId: null });
+
+	    useEffect(() => {
+          fetch('./layout.json')
+            .then(res => {
+              if (!res.ok) throw new Error('layout.json not found');
+              return res.json();
+            })
+            .then(layoutData => {
+              if (!Array.isArray(layoutData)) {
+                console.error('layout.json must export an array of tables');
+                return;
+              }
+              setTables(layoutData.map((t, i) => ({
+                internalId: t.internalId || `table-${i}`,
+                displayId:  t.displayId  || `${i+1}`,
+                orientation: (t.orientation === 'vertical' ? 'vertical' : 'horizontal'),
+                gridCol:     t.gridCol,
+                gridRow:     t.gridRow,
+                capacity:    t.capacity || 10
+              })));
+            })
+            .catch(err => {
+              console.warn(err.message);
+            });
+        }, []);
+
+            const mapContainerRef = useRef(null);
+            const mapContentRef = useRef(null);
+            const guestFileInputRef = useRef(null);
+            const layoutFileInputRef = useRef(null);
+	    
+
+            const { unassignedGuests, tableAssignments } = useMemo(() => {
+                const unassigned = [];
+                const tableAssignmentsMap = tables.reduce((acc, table) => { acc[table.internalId] = { guests: [], remainingSeats: table.capacity }; return acc; }, {});
+                guests.forEach(guest => {
+                    const assignedTableId = assignments[guest.id];
+                    if (assignedTableId && tableAssignmentsMap[assignedTableId]) {
+                        tableAssignmentsMap[assignedTableId].guests.push(guest);
+                        tableAssignmentsMap[assignedTableId].remainingSeats -= guest.size;
+                    } else { unassigned.push(guest); }
+                });
+                return { unassignedGuests: unassigned.sort((a,b) => a.id.localeCompare(b.id, undefined, {numeric: true})), tableAssignments: tableAssignmentsMap };
+            }, [assignments, guests, tables]);
+            
+            const calculateScale = () => {
+                if (mapContainerRef.current && mapContentRef.current) {
+                    const containerWidth = mapContainerRef.current.offsetWidth;
+                    const containerHeight = mapContainerRef.current.offsetHeight;
+                    
+                    // Get the scrollable content dimensions
+                    const scrollWidth = mapContentRef.current.scrollWidth;
+                    const scrollHeight = mapContentRef.current.scrollHeight;
+                    
+                    if (scrollWidth > 0 && scrollHeight > 0) {
+                        const scaleX = containerWidth / scrollWidth;
+                        const scaleY = containerHeight / scrollHeight;
+                        setScale(Math.min(scaleX, scaleY, 1) * 0.95); // Use 0.95 for a little padding
+                    }
+                }
+            };
+
+            useEffect(() => {
+                const timer = setTimeout(calculateScale, 50); // Give a brief moment for layout to settle
+                window.addEventListener('resize', calculateScale);
+                return () => {
+                    clearTimeout(timer);
+                    window.removeEventListener('resize', calculateScale);
+                }
+            }, [tables]);
+
+
+            const displayNotification = (msg, type) => { setNotification({msg, type}); };
+            const handleReset = () => { setAssignments({}); setNotification(null); setSelectedGuestId(null); };
+
+            const handleGuestFileChange = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+
+                const processGuestData = (data) => {
+                    try {
+                        if (!data || data.length === 0) throw new Error("File is empty or contains no data.");
+
+                        const newGuests = data.map((row, index) => {
+                            if (!Array.isArray(row) || row.length < 2) {
+                                if (row.every(item => item === null || item === '')) return null;
+                                throw new Error(`Invalid format on row ${index + 1}. Each row must have at least Name and Size.`);
+                            }
+                            const name = (row[0] || '').toString().trim().replace(/^"|"$/g, '');
+                            const sizeStr = (row[1] || '').toString().trim();
+                            const notes = row.length > 2 ? (row.slice(2).join(', ') || '').toString().trim().replace(/^"|"$/g, '') : '';
+
+                            if (!name && !sizeStr) return null;
+                            if (!name) throw new Error(`Missing guest name on row ${index + 1}.`);
+
+                            const size = parseInt(sizeStr, 10);
+                            if (isNaN(size) || size <= 0) throw new Error(`Invalid party size for "${name}" on row ${index + 1}.`);
+
+                            return { id: `imported-g${index + 1}-${Date.now()}`, name, size, notes };
+                        }).filter(Boolean);
+
+                        if (newGuests.length === 0) throw new Error("No valid guest data found in the file.");
+
+                        setGuests(newGuests);
+                        handleReset();
+                    } catch (err) {
+                        displayNotification(err.message, 'error');
+                    }
+                };
+
+                if (file.name.endsWith('.xlsx')) {
+                    reader.onload = (event) => {
+                        try {
+                            const data = new Uint8Array(event.target.result);
+                            const workbook = XLSX.read(data, { type: 'array' });
+                            const sheetName = workbook.SheetNames[0];
+                            const worksheet = XLSX.Sheets[sheetName];
+                            const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+                            processGuestData(jsonData);
+                        } catch (err) {
+                            displayNotification(`Error processing .xlsx file: ${err.message}`, 'error');
+                        }
+                    };
+                    reader.onerror = () => { displayNotification("Error reading file.", 'error'); };
+                    reader.readAsArrayBuffer(file);
+                } else {
+                    reader.onload = (event) => {
+                        const text = event.target.result;
+                        const lines = text.split('\n').filter(line => line.trim() !== '');
+                        const csvData = lines.map(line => line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/));
+                        processGuestData(csvData);
+                    };
+                    reader.onerror = () => { displayNotification("Error reading file.", 'error'); };
+                    reader.readAsText(file);
+                }
+                e.target.value = null;
+            };
+
+             const handleLayoutFileChange = (e) => {
+                const file = e.target.files[0]; if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    try {
+                        const layoutData = JSON.parse(event.target.result);
+                        if (!Array.isArray(layoutData)) throw new Error("Layout file must be a JSON array.");
+                        const newTables = layoutData.map((table, index) => ({
+                            internalId: table.internalId || `table-${index}-${Date.now()}`,
+                            displayId: table.displayId || `${index + 1}`,
+                            orientation: table.orientation === 'vertical' ? 'vertical' : 'horizontal',
+                            gridCol: table.gridCol,
+                            gridRow: table.gridRow,
+                            capacity: table.capacity || 10
+                        }));
+                        setTables(newTables);
+                        handleReset();
+                    } catch (err) { displayNotification(`Failed to parse layout file: ${err.message}`, 'error'); }
+                };
+                reader.onerror = () => { displayNotification("Error reading layout file.", 'error'); };
+                reader.readAsText(file); e.target.value = null;
+            }
+
+            const handleGuestSizeChange = (guestId, newSize) => {
+                if (newSize === 0) {
+                    setConfirmModalState({ isOpen: true, guestId: guestId });
+                } else {
+                    setGuests(currentGuests => currentGuests.map(g => g.id === guestId ? { ...g, size: newSize } : g));
+                    const assignedTableId = assignments[guestId];
+                    if (assignedTableId) {
+                        const tableData = tables.find(t => t.internalId === assignedTableId);
+                        const currentTableGuests = guests.filter(g => assignments[g.id] === assignedTableId && g.id !== guestId);
+                        const newTotal = currentTableGuests.reduce((sum, g) => sum + g.size, 0) + newSize;
+                        if (newTotal > tableData.capacity) {
+                            unassignGuest(guestId);
+                            // Find the guest name for the notification
+                            const guestToUpdate = guests.find(g => g.id === guestId);
+                            displayNotification(`"${guestToUpdate.name}" un-assigned: new size (${newSize}) exceeds table capacity.`, 'info');
+                        }
+                    }
+                }
+            };
+
+            const handleConfirmDelete = () => {
+                const { guestId } = confirmModalState;
+                if (!guestId) return;
+
+                const guestToUpdate = guests.find(g => g.id === guestId);
+                setGuests(currentGuests => currentGuests.filter(g => g.id !== guestId));
+                unassignGuest(guestId);
+                displayNotification(`Removed "${guestToUpdate.name}" from the guest list.`, 'info');
+                setConfirmModalState({ isOpen: false, guestId: null });
+            };
+            
+            const handleGuestNotesChange = (guestId, newNotes) => { setGuests(currentGuests => currentGuests.map(g => g.id === guestId ? { ...g, notes: newNotes } : g)); };
+
+            const handleAddParty = (name, size) => {
+                const newParty = { id: `new-g-${Date.now()}`, name, size, notes: '' };
+                setGuests(prevGuests => [newParty, ...prevGuests]);
+            };
+
+            const assignGuestToTable = (guestId, tableId) => {
+                const guest = guests.find(g => g.id === guestId);
+                const { remainingSeats } = tableAssignments[tableId];
+                if (!guest) return;
+                if (guest.size > remainingSeats) {
+                    displayNotification(`Party of ${guest.size} is too large for this table.`, 'error');
+                } else {
+                    setAssignments(prev => ({ ...prev, [guestId]: tableId }));
+                    setSelectedGuestId(null);
+                }
+            };
+            const unassignGuest = (guestId) => { if (assignments[guestId]) { setAssignments(prev => { const newAssignments = { ...prev }; delete newAssignments[guestId]; return newAssignments; }); } };
+
+            const handleGuestCardClick = (guestId) => {
+                if (selectedGuestId === guestId) {
+                    setSelectedGuestId(null);
+                } else {
+                    setSelectedGuestId(guestId);
+                    if (window.innerWidth < 1024) {
+                        setActiveView('map');
+                    }
+                }
+            };
+
+            const handleTableClick = (table) => {
+                if (selectedGuestId) {
+                    assignGuestToTable(selectedGuestId, table.internalId);
+                } else {
+                    const assignmentInfo = tableAssignments[table.internalId] || { guests: [] };
+                    setModalData({ table, guests: assignmentInfo.guests });
+                }
+            };
+
+            const handleUnassignInModal = (guestId) => {
+                unassignGuest(guestId);
+                setModalData(prev => {
+                    if (!prev) return null;
+                    const newGuests = prev.guests.filter(g => g.id !== guestId);
+                    return { ...prev, guests: newGuests };
+                });
+            };
+
+            const renderTable = (table) => {
+                 if (!table) return null;
+                 return <TableVisual key={table.internalId} table={table} assignedGuests={tableAssignments[table.internalId]?.guests || []} isSelectedGuest={!!selectedGuestId} onClick={() => handleTableClick(table)} orientation={table.orientation}/>
+             };
+             
+            const guestToConfirm = guests.find(g => g.id === confirmModalState.guestId);
+
+            return (
+                <div className="bg-gray-100 h-full font-sans flex flex-col">
+                    <Notification message={notification?.msg} type={notification?.type} onDismiss={() => setNotification(null)} />
+                    <ConfirmationModal
+                        isOpen={confirmModalState.isOpen}
+                        onClose={() => setConfirmModalState({ isOpen: false, guestId: null })}
+                        onConfirm={handleConfirmDelete}
+                        title="Confirm Deletion"
+                    >
+                        Are you sure you want to remove the party "<strong>{guestToConfirm?.name}</strong>"? This action cannot be undone.
+                    </ConfirmationModal>
+                    <ReservationDetailsModal modalData={modalData} onClose={() => setModalData(null)} onUnassign={handleUnassignInModal} />
+                    <AddPartyModal isOpen={isAddPartyModalOpen} onClose={() => setIsAddPartyModalOpen(false)} onAddParty={handleAddParty} />
+
+                    <header className="landscape-header p-4 sm:p-6 lg:p-4 w-full flex-shrink-0">
+                        <div className="max-w-full mx-auto flex justify-between items-center gap-4">
+                             <h1 className="text-2xl md:text-3xl font-bold text-gray-800">Visual Seating Planner</h1>
+                            <div className="flex items-center gap-4">
+                                <SettingsMenu 
+                                    onImportLayout={() => layoutFileInputRef.current.click()}
+                                    onImportGuests={() => guestFileInputRef.current.click()}
+                                />
+                                <input type="file" ref={guestFileInputRef} onChange={handleGuestFileChange} style={{ display: 'none' }} accept=".csv,.txt,.xlsx" />
+                                <input type="file" ref={layoutFileInputRef} onChange={handleLayoutFileChange} style={{ display: 'none' }} accept=".json" />
+                                <button onClick={handleReset} className="reset-button px-6 py-2 bg-red-500 text-white font-semibold rounded-lg shadow-md hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-all">Reset</button>
+                            </div>
+                        </div>
+                    </header>
+
+                    <div className="mobile-view-switcher p-2 bg-gray-200 lg:hidden sticky top-0 z-10 flex-shrink-0">
+                        <div className="flex w-full rounded-md shadow-sm">
+                            <button onClick={() => setActiveView('list')} className={`w-full py-2 text-sm font-medium rounded-l-md ${activeView === 'list' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}`}>List View</button>
+                            <button onClick={() => setActiveView('map')} className={`w-full py-2 text-sm font-medium rounded-r-md border-l border-gray-300 ${activeView === 'map' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}`}>Map View</button>
+                        </div>
+                    </div>
+
+                    <main className="landscape-main flex-grow flex flex-col lg:flex-row gap-8 p-4 sm:p-6 lg:p-4 h-screen lg:overflow-hidden">
+                        <div className={`guest-list-panel flex-grow min-h-0 lg:flex-grow-0 lg:w-96 lg:flex-shrink-0 bg-white rounded-xl shadow-lg border border-gray-200 flex flex-col ${activeView === 'list' ? 'flex' : 'hidden'} lg:flex`}>
+                            <div className="flex justify-between items-center p-4 border-b flex-shrink-0">
+                                <h2 className="text-xl font-bold text-gray-700">Guest Parties ({unassignedGuests.length})</h2>
+                                <button onClick={() => setIsAddPartyModalOpen(true)} className="bg-indigo-600 text-white rounded-full p-2 hover:bg-indigo-700 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" /></svg>
+                                </button>
+                            </div>
+                            <div className="overflow-y-auto flex-grow p-4" style={{ WebkitOverflowScrolling: 'touch' }}>
+                                {guests.length > 0 ? ( unassignedGuests.map(guest => <GuestCard key={guest.id} guest={guest} onSizeChange={handleGuestSizeChange} onNotesChange={handleGuestNotesChange} isSelected={selectedGuestId === guest.id} onClick={() => handleGuestCardClick(guest.id)} />)
+                                ) : (<div className="text-center text-gray-500 mt-10 p-4 bg-gray-50 rounded-lg"><h3 className="font-semibold text-lg">No Guests</h3><p className="text-sm">Import a guest list to get started.</p></div>)}
+                            </div>
+                        </div>
+
+                        <div className={`map-panel relative flex-grow bg-white p-4 rounded-xl shadow-lg ${activeView === 'map' ? 'flex' : 'hidden'} lg:flex flex-col`}>
+                             {/* Removed items-center and justify-center from mapContainerRef */}
+                             <div ref={mapContainerRef} className="w-full h-full overflow-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
+                                 {/* Changed transformOrigin to 'top left' */}
+                                <div ref={mapContentRef} style={{ transform: `scale(${scale})`, transformOrigin: 'top left' }} className="transition-transform duration-300 min-w-0 min-h-0">
+                                    <div className="grid" style={{gridTemplateColumns: `repeat(${Math.max(...(tables.length > 0 ? tables.map(t=>t.gridCol) : [0])) + 1}, auto)`, gap: '1rem'}}>
+                                        {tables.map(table => (
+                                            <div key={table.internalId} style={{ gridColumn: table.gridCol + 1, gridRow: table.gridRow + 1 }} className="flex items-center justify-center">
+                                                {renderTable(table)}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                            <ZoomControls onZoomIn={() => setScale(s => Math.min(s + 0.1, 2))} onZoomOut={() => setScale(s => Math.max(s - 0.1, 0.2))} onReset={calculateScale} />
+                        </div>
+                    </main>
+                </div>
+            );
+        }
+
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>
