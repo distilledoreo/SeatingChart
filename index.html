@@ -424,6 +424,11 @@
             const [isAddPartyModalOpen, setIsAddPartyModalOpen] = useState(false);
             const [activeView, setActiveView] = useState('list');
             const [scale, setScale] = useState(1);
+            const scaleRef = useRef(scale);
+
+            useEffect(() => {
+                scaleRef.current = scale;
+            }, [scale]);
             const [confirmModalState, setConfirmModalState] = useState({ isOpen: false, guestId: null });
 
 	    useEffect(() => {
@@ -497,7 +502,8 @@
                 const container = mapContainerRef.current;
                 if (!container) return;
                 let startDistance = 0;
-                let startScale = scale;
+                let startScale = 1;
+
 
                 const getDistance = (touches) => {
                     const dx = touches[0].clientX - touches[1].clientX;
@@ -508,7 +514,8 @@
                 const handleTouchStart = (e) => {
                     if (e.touches.length === 2) {
                         startDistance = getDistance(e.touches);
-                        startScale = scale;
+                        startScale = scaleRef.current;
+
                     }
                 };
 
@@ -527,7 +534,8 @@
                     container.removeEventListener('touchstart', handleTouchStart);
                     container.removeEventListener('touchmove', handleTouchMove);
                 };
-            }, [scale]);
+            }, []);
+
 
 
             const displayNotification = (msg, type) => { setNotification({msg, type}); };
