@@ -51,3 +51,7 @@ Here is a template based on the final layout we created. You can copy this, save
   { "internalId": 11, "displayId": "25", "orientation": "horizontal", "gridRow": 7, "gridCol": 1 },
   { "internalId": 12, "displayId": "26", "orientation": "horizontal", "gridRow": 8, "gridCol": 1 }
 ]
+
+## Layout Validation Test
+
+Run `node test/validateLayouts.js` to verify all layout files. The script checks every `*.json` file for required fields and duplicate `internalId` values.
