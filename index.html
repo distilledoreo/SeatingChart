@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Visual Seating Planner</title>
     <script src="https://unpkg.com/react@17/umd/react.development.js"></script>
     <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"></script>
@@ -424,6 +424,11 @@
             const [isAddPartyModalOpen, setIsAddPartyModalOpen] = useState(false);
             const [activeView, setActiveView] = useState('list');
             const [scale, setScale] = useState(1);
+            const scaleRef = useRef(scale);
+
+            useEffect(() => {
+                scaleRef.current = scale;
+            }, [scale]);
             const [confirmModalState, setConfirmModalState] = useState({ isOpen: false, guestId: null });
 
 	    useEffect(() => {
@@ -473,16 +478,13 @@
             const calculateScale = () => {
                 if (mapContainerRef.current && mapContentRef.current) {
                     const containerWidth = mapContainerRef.current.offsetWidth;
-                    const containerHeight = mapContainerRef.current.offsetHeight;
-                    
+
                     // Get the scrollable content dimensions
                     const scrollWidth = mapContentRef.current.scrollWidth;
-                    const scrollHeight = mapContentRef.current.scrollHeight;
-                    
-                    if (scrollWidth > 0 && scrollHeight > 0) {
+
+                    if (scrollWidth > 0) {
                         const scaleX = containerWidth / scrollWidth;
-                        const scaleY = containerHeight / scrollHeight;
-                        setScale(Math.min(scaleX, scaleY, 1) * 0.95); // Use 0.95 for a little padding
+                        setScale(Math.min(scaleX, 1));
                     }
                 }
             };
@@ -495,6 +497,42 @@
                     window.removeEventListener('resize', calculateScale);
                 }
             }, [tables]);
+
+            useEffect(() => {
+                const container = mapContainerRef.current;
+                if (!container) return;
+                let startDistance = 0;
+                let startScale = 1;
+
+                const getDistance = (touches) => {
+                    const dx = touches[0].clientX - touches[1].clientX;
+                    const dy = touches[0].clientY - touches[1].clientY;
+                    return Math.hypot(dx, dy);
+                };
+
+                const handleTouchStart = (e) => {
+                    if (e.touches.length === 2) {
+                        startDistance = getDistance(e.touches);
+                        startScale = scaleRef.current;
+                    }
+                };
+
+                const handleTouchMove = (e) => {
+                    if (e.touches.length === 2) {
+                        e.preventDefault();
+                        const newDistance = getDistance(e.touches);
+                        const newScale = startScale * (newDistance / startDistance);
+                        setScale(Math.min(Math.max(newScale, 0.2), 2));
+                    }
+                };
+
+                container.addEventListener('touchstart', handleTouchStart, { passive: false });
+                container.addEventListener('touchmove', handleTouchMove, { passive: false });
+                return () => {
+                    container.removeEventListener('touchstart', handleTouchStart);
+                    container.removeEventListener('touchmove', handleTouchMove);
+                };
+            }, []);
 
 
             const displayNotification = (msg, type) => { setNotification({msg, type}); };
@@ -736,7 +774,7 @@
 
                         <div className={`map-panel relative flex-grow bg-white p-4 rounded-xl shadow-lg ${activeView === 'map' ? 'flex' : 'hidden'} lg:flex flex-col`}>
                              {/* Scrollable wrapper around the map */}
-                             <div ref={mapContainerRef} className="w-full h-full overflow-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
+                             <div ref={mapContainerRef} className="w-full h-full overflow-auto" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'none' }}>
                                  {/* Scale content from the top-left corner so scrolling stays aligned */}
                                 <div ref={mapContentRef} style={{ transform: `scale(${scale})`, transformOrigin: 'top left' }} className="transition-transform duration-300 min-w-0 min-h-0">
                                     <div className="grid" style={{gridTemplateColumns: `repeat(${Math.max(...(tables.length > 0 ? tables.map(t=>t.gridCol) : [0])) + 1}, auto)`, gap: '1rem'}}>
