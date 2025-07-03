@@ -38,6 +38,7 @@
             animation: slideOutUp 0.5s ease-in forwards;
         }
         /* Ensure the app fills the viewport */
+
         html, body, #root {
             height: 100%;
             margin: 0;
@@ -46,38 +47,7 @@
             overflow: hidden; /* Prevent body scroll */
         }
 
-        /* Custom styles for mobile landscape orientation */
-        @media (orientation: landscape) and (max-height: 500px) {
-            /* Make header more compact */
-            .landscape-header {
-                padding: 0.25rem 1rem !important;
-            }
-            .landscape-header h1 {
-                font-size: 1.125rem !important; /* text-lg */
-            }
-            .landscape-header .reset-button {
-                padding: 0.25rem 0.75rem !important;
-                font-size: 0.875rem !important;
-            }
 
-            /* Hide the mobile view switcher */
-            .mobile-view-switcher {
-                display: none !important;
-            }
-
-            /* Make main content area horizontal and reduce padding */
-            .landscape-main {
-                flex-direction: row !important;
-                padding: 0.5rem !important;
-                gap: 0.5rem !important;
-            }
-
-            /* Force both list and map to be visible and side-by-side */
-            .guest-list-panel, .map-panel {
-                display: flex !important; /* Override the JS-based hiding */
-                flex-basis: 50%; /* Each panel takes half the width */
-            }
-        }
     </style>
 </head>
 <body>
@@ -696,6 +666,53 @@
                 let startDistance = 0;
                 let startScale = 1;
 
+                const getDistance = (touches) => {
+                    const dx = touches[0].clientX - touches[1].clientX;
+                    const dy = touches[0].clientY - touches[1].clientY;
+                    return Math.hypot(dx, dy);
+                };
+
+                const handleTouchStart = (e) => {
+                    if (e.touches.length === 2) {
+                        startDistance = getDistance(e.touches);
+                        startScale = scaleRef.current;
+                        setIsPinching(true);
+                    }
+                };
+
+                const handleTouchMove = (e) => {
+                    if (e.touches.length === 2) {
+                        e.preventDefault();
+                        const newDistance = getDistance(e.touches);
+                        const newScale = Math.min(Math.max(startScale * (newDistance / startDistance), 0.2), 2);
+                        scaleRef.current = newScale;
+                        setScale(newScale);
+                    }
+                };
+
+                const handleTouchEnd = () => {
+                    setIsPinching(false);
+                };
+
+                container.addEventListener('touchstart', handleTouchStart, { passive: false });
+                container.addEventListener('touchmove', handleTouchMove, { passive: false });
+                container.addEventListener('touchend', handleTouchEnd);
+                container.addEventListener('touchcancel', handleTouchEnd);
+                return () => {
+                    container.removeEventListener('touchstart', handleTouchStart);
+                    container.removeEventListener('touchmove', handleTouchMove);
+                    container.removeEventListener('touchend', handleTouchEnd);
+                    container.removeEventListener('touchcancel', handleTouchEnd);
+                };
+            }, []);
+
+
+            useEffect(() => {
+                const container = mapContainerRef.current;
+                if (!container) return;
+                let startDistance = 0;
+                let startScale = 1;
+
 
                 const getDistance = (touches) => {
                     const dx = touches[0].clientX - touches[1].clientX;
@@ -918,7 +935,9 @@
             const modalGuests = modalData ? tableAssignments[modalData.tableId]?.guests || [] : [];
 
             return (
+
                 <div className="bg-gray-100 h-screen font-sans flex flex-col">
+
                     <Notification message={notification?.msg} type={notification?.type} onDismiss={() => setNotification(null)} />
                     <ConfirmationModal
                         isOpen={confirmModalState.isOpen}
@@ -954,7 +973,7 @@
                     </div>
 
 
-                    <main className="landscape-main flex-grow flex flex-col lg:flex-row gap-8 p-4 sm:p-6 lg:p-4 lg:overflow-hidden h-full">
+                    <main className="landscape-main flex-grow min-h-0 flex flex-col lg:flex-row gap-8 p-4 sm:p-6 lg:p-4 lg:overflow-hidden h-full">
                         <div className={`guest-list-panel flex-grow min-h-0 lg:flex-grow-0 lg:w-96 lg:flex-shrink-0 bg-white rounded-xl shadow-lg border border-gray-200 flex flex-col h-full ${activeView === 'list' ? 'flex' : 'hidden'} lg:flex`}>
 
                             <div className="flex justify-between items-center p-4 border-b flex-shrink-0">
