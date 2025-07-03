@@ -87,6 +87,7 @@
     <script type="text/babel">
         const { useState, useMemo, useRef, useEffect } = React;
 
+
         // --- Helper Components ---
 
         const UserIcon = ({ className }) => (
@@ -136,10 +137,13 @@
             );
         };
 
+
         const EditableNote = ({ guest, onNotesChange }) => {
+
             const [isEditing, setIsEditing] = useState(false);
             const [note, setNote] = useState(guest.notes || '');
             const textareaRef = useRef(null);
+
 
             useEffect(() => {
                 if (isEditing && textareaRef.current) {
@@ -175,6 +179,7 @@
 
             return (
                 <div className="mt-2 text-sm text-gray-700 w-full relative" onClick={(e) => e.stopPropagation()}>
+
                     {isEditing ? (
                         <textarea
                             ref={textareaRef}
@@ -183,6 +188,7 @@
                             onBlur={handleSave}
                             onKeyDown={handleKeyDown}
                             className="w-full p-1 text-sm bg-white border border-indigo-300 rounded resize-none pr-6"
+
                             placeholder="Add a note..."
                             rows="1"
                         />
@@ -204,6 +210,7 @@
                 </div>
             );
         };
+
         
         // --- Main Components ---
 
