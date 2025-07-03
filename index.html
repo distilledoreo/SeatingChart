@@ -85,12 +85,16 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useMemo, useRef, useEffect } = React;
+        const { useState, useMemo, useRef, useEffect, useImperativeHandle } = React;
 
         // --- Helper Components ---
 
         const UserIcon = ({ className }) => (
           <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" /></svg>
+        );
+
+        const PencilIcon = ({ className }) => (
+          <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M21.731 2.269a2.625 2.625 0 0 0-3.712 0l-1.157 1.157 3.712 3.712 1.157-1.157a2.625 2.625 0 0 0 0-3.712ZM19.513 8.199l-3.712-3.712-12.15 12.15a5.25 5.25 0 0 0-1.32 2.214l-.8 2.685a.75.75 0 0 0 .933.933l2.685-.8a5.25 5.25 0 0 0 2.214-1.32L19.513 8.2Z"/></svg>
         );
 
         const EditablePartySize = ({ guest, onSizeChange }) => {
@@ -132,10 +136,13 @@
             );
         };
 
-        const EditableNote = ({ guest, onNotesChange }) => {
+        const EditableNote = React.forwardRef(({ guest, onNotesChange }, ref) => {
             const [isEditing, setIsEditing] = useState(false);
             const [note, setNote] = useState(guest.notes || '');
             const textareaRef = useRef(null);
+
+            useImperativeHandle(ref, () => ({ startEditing: () => setIsEditing(true) }));
+
             useEffect(() => {
                 if (isEditing && textareaRef.current) {
                     const textarea = textareaRef.current;
@@ -144,24 +151,52 @@
                     textarea.style.height = `${textarea.scrollHeight}px`;
                 }
             }, [isEditing]);
-            const handleSave = () => { setIsEditing(false); if (note !== guest.notes) { onNotesChange(guest.id, note); } };
-            const handleKeyDown = (e) => {
-                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSave(); }
-                else if (e.key === 'Escape') { setNote(guest.notes || ''); setIsEditing(false); }
+
+            const handleSave = () => {
+                setIsEditing(false);
+                if (note !== guest.notes) {
+                    onNotesChange(guest.id, note);
+                }
             };
-            const handleTextChange = (e) => { setNote(e.target.value); e.target.style.height = 'auto'; e.target.style.height = `${e.target.scrollHeight}px`; };
+
+            const handleKeyDown = (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSave();
+                } else if (e.key === 'Escape') {
+                    setNote(guest.notes || '');
+                    setIsEditing(false);
+                }
+            };
+
+            const handleTextChange = (e) => {
+                setNote(e.target.value);
+                e.target.style.height = 'auto';
+                e.target.style.height = `${e.target.scrollHeight}px`;
+            };
+
             return (
-                <div className="mt-2 text-sm text-gray-700 w-full" onClick={(e) => e.stopPropagation()}>
+                <div className="mt-2 text-sm text-gray-700 w-full">
                     {isEditing ? (
-                        <textarea ref={textareaRef} value={note} onChange={handleTextChange} onBlur={handleSave} onKeyDown={handleKeyDown} className="w-full p-1 text-sm bg-white border border-indigo-300 rounded resize-none" placeholder="Add a note..." rows="1"/>
+                        <textarea
+                            ref={textareaRef}
+                            value={note}
+                            onChange={handleTextChange}
+                            onBlur={handleSave}
+                            onKeyDown={handleKeyDown}
+                            onClick={(e) => e.stopPropagation()}
+                            className="w-full p-1 text-sm bg-white border border-indigo-300 rounded resize-none"
+                            placeholder="Add a note..."
+                            rows="1"
+                        />
                     ) : (
-                        <div onClick={() => setIsEditing(true)} className={`w-full p-1 rounded min-h-[2.5rem] cursor-pointer whitespace-pre-wrap ${note ? 'text-gray-700' : 'text-gray-400 italic'}`}>
+                        <div className={`w-full p-1 rounded min-h-[2.5rem] whitespace-pre-wrap ${note ? 'text-gray-700' : 'text-gray-400 italic'}`}>
                             {note || 'Add a note...'}
                         </div>
                     )}
                 </div>
             );
-        };
+        });
         
         // --- Main Components ---
 
@@ -212,10 +247,19 @@
         };
 
         const GuestCard = ({ guest, onSizeChange, onNotesChange, isSelected, onClick }) => {
+          const noteRef = useRef(null);
           return (
             <div onClick={onClick} className={`p-3 mb-2 rounded-lg shadow-md cursor-pointer flex flex-col items-start justify-center text-sm transition-all duration-200 ease-in-out bg-white hover:bg-gray-50 ${isSelected ? 'ring-2 ring-blue-500' : 'ring-1 ring-transparent'}`}>
-              <div className="flex items-center justify-between w-full"><span className="font-semibold text-gray-800">{guest.name}</span><EditablePartySize guest={guest} onSizeChange={onSizeChange} /></div>
-              <EditableNote guest={guest} onNotesChange={onNotesChange} />
+              <div className="flex items-center justify-between w-full">
+                <span className="font-semibold text-gray-800">{guest.name}</span>
+                <div className="flex items-center gap-1">
+                  <EditablePartySize guest={guest} onSizeChange={onSizeChange} />
+                  <button onClick={(e) => { e.stopPropagation(); noteRef.current?.startEditing(); }} className="p-1 text-gray-500 hover:text-indigo-600" title="Edit notes">
+                    <PencilIcon className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+              <EditableNote ref={noteRef} guest={guest} onNotesChange={onNotesChange} />
             </div>
           );
         };
