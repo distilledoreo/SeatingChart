@@ -480,7 +480,6 @@
                 return { unassignedGuests: unassigned.sort((a,b) => a.id.localeCompare(b.id, undefined, {numeric: true})), tableAssignments: tableAssignmentsMap };
             }, [assignments, guests, tables]);
             
-
             const calculateScale = () => {
                 if (mapContainerRef.current && mapContentRef.current) {
                     const containerWidth = mapContainerRef.current.offsetWidth;
@@ -503,6 +502,53 @@
                     window.removeEventListener('resize', calculateScale);
                 }
             }, [tables]);
+
+            useEffect(() => {
+                const container = mapContainerRef.current;
+                if (!container) return;
+                let startDistance = 0;
+                let startScale = 1;
+
+                const getDistance = (touches) => {
+                    const dx = touches[0].clientX - touches[1].clientX;
+                    const dy = touches[0].clientY - touches[1].clientY;
+                    return Math.hypot(dx, dy);
+                };
+
+                const handleTouchStart = (e) => {
+                    if (e.touches.length === 2) {
+                        startDistance = getDistance(e.touches);
+                        startScale = scaleRef.current;
+                        setIsPinching(true);
+                    }
+                };
+
+                const handleTouchMove = (e) => {
+                    if (e.touches.length === 2) {
+                        e.preventDefault();
+                        const newDistance = getDistance(e.touches);
+                        const newScale = Math.min(Math.max(startScale * (newDistance / startDistance), 0.2), 2);
+                        scaleRef.current = newScale;
+                        setScale(newScale);
+                    }
+                };
+
+                const handleTouchEnd = () => {
+                    setIsPinching(false);
+                };
+
+                container.addEventListener('touchstart', handleTouchStart, { passive: false });
+                container.addEventListener('touchmove', handleTouchMove, { passive: false });
+                container.addEventListener('touchend', handleTouchEnd);
+                container.addEventListener('touchcancel', handleTouchEnd);
+                return () => {
+                    container.removeEventListener('touchstart', handleTouchStart);
+                    container.removeEventListener('touchmove', handleTouchMove);
+                    container.removeEventListener('touchend', handleTouchEnd);
+                    container.removeEventListener('touchcancel', handleTouchEnd);
+                };
+            }, []);
+
 
             useEffect(() => {
                 const container = mapContainerRef.current;
@@ -814,7 +860,7 @@
                         </div>
                     </div>
 
-                    <main className="landscape-main flex-grow flex flex-col lg:flex-row gap-8 p-4 sm:p-6 lg:p-4 h-screen lg:overflow-hidden">
+                    <main className="landscape-main flex-grow flex flex-col lg:flex-row gap-8 p-4 sm:p-6 lg:p-4 lg:overflow-hidden">
                         <div className={`guest-list-panel flex-grow min-h-0 lg:flex-grow-0 lg:w-96 lg:flex-shrink-0 bg-white rounded-xl shadow-lg border border-gray-200 flex flex-col ${activeView === 'list' ? 'flex' : 'hidden'} lg:flex`}>
                             <div className="flex justify-between items-center p-4 border-b flex-shrink-0">
                                 <h2 className="text-xl font-bold text-gray-700">Guest Parties ({unassignedGuests.length})</h2>
@@ -832,9 +878,9 @@
                              {/* Scrollable wrapper around the map */}
 
                              <div ref={mapContainerRef} className="w-full h-full overflow-auto" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y' }}>
-
                                  {/* Scale content from the top-left corner so scrolling stays aligned */}
                                 <div ref={mapContentRef} style={{ transform: `scale(${scale})`, transformOrigin: 'top left' }} className={`min-w-0 min-h-0 ${isPinching ? '' : 'transition-transform duration-300'}`}>
+
                                     <div className="grid" style={{gridTemplateColumns: `repeat(${Math.max(...(tables.length > 0 ? tables.map(t=>t.gridCol) : [0])) + 1}, auto)`, gap: '1rem'}}>
                                         {tables.map(table => (
                                             <div key={table.internalId} style={{ gridColumn: table.gridCol + 1, gridRow: table.gridRow + 1 }} className="flex items-center justify-center">
