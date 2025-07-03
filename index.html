@@ -85,7 +85,7 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useMemo, useRef, useEffect, useImperativeHandle } = React;
+        const { useState, useMemo, useRef, useEffect } = React;
 
         // --- Helper Components ---
 
@@ -136,12 +136,10 @@
             );
         };
 
-        const EditableNote = React.forwardRef(({ guest, onNotesChange }, ref) => {
+        const EditableNote = ({ guest, onNotesChange }) => {
             const [isEditing, setIsEditing] = useState(false);
             const [note, setNote] = useState(guest.notes || '');
             const textareaRef = useRef(null);
-
-            useImperativeHandle(ref, () => ({ startEditing: () => setIsEditing(true) }));
 
             useEffect(() => {
                 if (isEditing && textareaRef.current) {
@@ -176,7 +174,7 @@
             };
 
             return (
-                <div className="mt-2 text-sm text-gray-700 w-full">
+                <div className="mt-2 text-sm text-gray-700 w-full relative">
                     {isEditing ? (
                         <textarea
                             ref={textareaRef}
@@ -190,8 +188,14 @@
                             rows="1"
                         />
                     ) : (
-                        <div className={`w-full p-1 rounded min-h-[2.5rem] whitespace-pre-wrap ${note ? 'text-gray-700' : 'text-gray-400 italic'}`}>
+                        <div className={`w-full p-1 rounded min-h-[2.5rem] whitespace-pre-wrap ${note ? 'text-gray-700' : 'text-gray-400 italic'} relative`}
+                             onClick={(e) => e.stopPropagation()}>
                             {note || 'Add a note...'}
+                            <button onClick={() => setIsEditing(true)}
+                                    className="absolute top-1 right-1 p-1 text-gray-500 hover:text-indigo-600"
+                                    title="Edit notes">
+                                <PencilIcon className="w-4 h-4" />
+                            </button>
                         </div>
                     )}
                 </div>
@@ -247,19 +251,15 @@
         };
 
         const GuestCard = ({ guest, onSizeChange, onNotesChange, isSelected, onClick }) => {
-          const noteRef = useRef(null);
           return (
             <div onClick={onClick} className={`p-3 mb-2 rounded-lg shadow-md cursor-pointer flex flex-col items-start justify-center text-sm transition-all duration-200 ease-in-out bg-white hover:bg-gray-50 ${isSelected ? 'ring-2 ring-blue-500' : 'ring-1 ring-transparent'}`}>
               <div className="flex items-center justify-between w-full">
                 <span className="font-semibold text-gray-800">{guest.name}</span>
                 <div className="flex items-center gap-1">
                   <EditablePartySize guest={guest} onSizeChange={onSizeChange} />
-                  <button onClick={(e) => { e.stopPropagation(); noteRef.current?.startEditing(); }} className="p-1 text-gray-500 hover:text-indigo-600" title="Edit notes">
-                    <PencilIcon className="w-4 h-4" />
-                  </button>
                 </div>
               </div>
-              <EditableNote ref={noteRef} guest={guest} onNotesChange={onNotesChange} />
+              <EditableNote guest={guest} onNotesChange={onNotesChange} />
             </div>
           );
         };
