@@ -473,16 +473,13 @@
             const calculateScale = () => {
                 if (mapContainerRef.current && mapContentRef.current) {
                     const containerWidth = mapContainerRef.current.offsetWidth;
-                    const containerHeight = mapContainerRef.current.offsetHeight;
-                    
+
                     // Get the scrollable content dimensions
                     const scrollWidth = mapContentRef.current.scrollWidth;
-                    const scrollHeight = mapContentRef.current.scrollHeight;
-                    
-                    if (scrollWidth > 0 && scrollHeight > 0) {
+
+                    if (scrollWidth > 0) {
                         const scaleX = containerWidth / scrollWidth;
-                        const scaleY = containerHeight / scrollHeight;
-                        setScale(Math.min(scaleX, scaleY, 1) * 0.95); // Use 0.95 for a little padding
+                        setScale(Math.min(scaleX, 1));
                     }
                 }
             };
@@ -495,6 +492,42 @@
                     window.removeEventListener('resize', calculateScale);
                 }
             }, [tables]);
+
+            useEffect(() => {
+                const container = mapContainerRef.current;
+                if (!container) return;
+                let startDistance = 0;
+                let startScale = scale;
+
+                const getDistance = (touches) => {
+                    const dx = touches[0].clientX - touches[1].clientX;
+                    const dy = touches[0].clientY - touches[1].clientY;
+                    return Math.hypot(dx, dy);
+                };
+
+                const handleTouchStart = (e) => {
+                    if (e.touches.length === 2) {
+                        startDistance = getDistance(e.touches);
+                        startScale = scale;
+                    }
+                };
+
+                const handleTouchMove = (e) => {
+                    if (e.touches.length === 2) {
+                        e.preventDefault();
+                        const newDistance = getDistance(e.touches);
+                        const newScale = startScale * (newDistance / startDistance);
+                        setScale(Math.min(Math.max(newScale, 0.2), 2));
+                    }
+                };
+
+                container.addEventListener('touchstart', handleTouchStart, { passive: false });
+                container.addEventListener('touchmove', handleTouchMove, { passive: false });
+                return () => {
+                    container.removeEventListener('touchstart', handleTouchStart);
+                    container.removeEventListener('touchmove', handleTouchMove);
+                };
+            }, [scale]);
 
 
             const displayNotification = (msg, type) => { setNotification({msg, type}); };
