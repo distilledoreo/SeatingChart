@@ -504,6 +504,7 @@
                 let startDistance = 0;
                 let startScale = 1;
 
+
                 const getDistance = (touches) => {
                     const dx = touches[0].clientX - touches[1].clientX;
                     const dy = touches[0].clientY - touches[1].clientY;
@@ -514,6 +515,7 @@
                     if (e.touches.length === 2) {
                         startDistance = getDistance(e.touches);
                         startScale = scaleRef.current;
+
                     }
                 };
 
@@ -533,6 +535,7 @@
                     container.removeEventListener('touchmove', handleTouchMove);
                 };
             }, []);
+
 
 
             const displayNotification = (msg, type) => { setNotification({msg, type}); };
