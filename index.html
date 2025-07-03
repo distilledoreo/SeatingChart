@@ -677,9 +677,9 @@
                         </div>
 
                         <div className={`map-panel relative flex-grow bg-white p-4 rounded-xl shadow-lg ${activeView === 'map' ? 'flex' : 'hidden'} lg:flex flex-col`}>
-                             {/* Removed items-center and justify-center from mapContainerRef */}
+                             {/* Scrollable wrapper around the map */}
                              <div ref={mapContainerRef} className="w-full h-full overflow-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
-                                 {/* Changed transformOrigin to 'top left' */}
+                                 {/* Scale content from the top-left corner so scrolling stays aligned */}
                                 <div ref={mapContentRef} style={{ transform: `scale(${scale})`, transformOrigin: 'top left' }} className="transition-transform duration-300 min-w-0 min-h-0">
                                     <div className="grid" style={{gridTemplateColumns: `repeat(${Math.max(...(tables.length > 0 ? tables.map(t=>t.gridCol) : [0])) + 1}, auto)`, gap: '1rem'}}>
                                         {tables.map(table => (
