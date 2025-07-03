@@ -498,7 +498,7 @@
                 } else {
                     reader.onload = (event) => {
                         const text = event.target.result;
-                        const lines = text.split('\n').filter(line => line.trim() !== '');
+                        const lines = text.split(/\r?\n/).filter(line => line.trim() !== '');
                         const csvData = lines.map(line => line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/));
                         processGuestData(csvData);
                     };
