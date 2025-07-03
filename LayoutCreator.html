@@ -112,7 +112,7 @@
                                         className={`w-full h-24 bg-gray-100 rounded border-2 border-dashed border-gray-300 hover:bg-green-100 hover:border-green-400 cursor-pointer flex items-center justify-center transition-colors`}
                                     >
                                        {tableHere ? (
-                                           <div className={`relative rounded p-1 ${tableHere.orientation === 'vertical' ? 'w-8 h-16' : 'w-16 h-8'} bg-red-400 flex items-center justify-center shadow-md`}>
+                                           <div className={`relative rounded p-1 ${tableHere.orientation === 'vertical' ? 'w-8 h-16' : 'w-16 h-8'} bg-green-400 flex items-center justify-center shadow-md`}>
                                                 <span className="text-white font-bold text-sm">{tableHere.displayId}</span>
                                                 <button onClick={(e) => handleDelete(e, tableHere.internalId)} className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold leading-none hover:bg-red-700">&times;</button>
                                            </div>
