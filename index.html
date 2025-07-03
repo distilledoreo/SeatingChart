@@ -480,6 +480,7 @@
                 return { unassignedGuests: unassigned.sort((a,b) => a.id.localeCompare(b.id, undefined, {numeric: true})), tableAssignments: tableAssignmentsMap };
             }, [assignments, guests, tables]);
             
+
             const calculateScale = () => {
                 if (mapContainerRef.current && mapContentRef.current) {
                     const containerWidth = mapContainerRef.current.offsetWidth;
@@ -502,6 +503,53 @@
                     window.removeEventListener('resize', calculateScale);
                 }
             }, [tables]);
+
+            useEffect(() => {
+                const container = mapContainerRef.current;
+                if (!container) return;
+                let startDistance = 0;
+                let startScale = 1;
+
+                const getDistance = (touches) => {
+                    const dx = touches[0].clientX - touches[1].clientX;
+                    const dy = touches[0].clientY - touches[1].clientY;
+                    return Math.hypot(dx, dy);
+                };
+
+                const handleTouchStart = (e) => {
+                    if (e.touches.length === 2) {
+                        startDistance = getDistance(e.touches);
+                        startScale = scaleRef.current;
+                        setIsPinching(true);
+                    }
+                };
+
+                const handleTouchMove = (e) => {
+                    if (e.touches.length === 2) {
+                        e.preventDefault();
+                        const newDistance = getDistance(e.touches);
+                        const newScale = Math.min(Math.max(startScale * (newDistance / startDistance), 0.2), 2);
+                        scaleRef.current = newScale;
+                        setScale(newScale);
+                    }
+                };
+
+                const handleTouchEnd = () => {
+                    setIsPinching(false);
+                };
+
+                container.addEventListener('touchstart', handleTouchStart, { passive: false });
+                container.addEventListener('touchmove', handleTouchMove, { passive: false });
+                container.addEventListener('touchend', handleTouchEnd);
+                container.addEventListener('touchcancel', handleTouchEnd);
+                return () => {
+                    container.removeEventListener('touchstart', handleTouchStart);
+                    container.removeEventListener('touchmove', handleTouchMove);
+                    container.removeEventListener('touchend', handleTouchEnd);
+                    container.removeEventListener('touchcancel', handleTouchEnd);
+                };
+            }, []);
+
 
             useEffect(() => {
                 const container = mapContainerRef.current;
@@ -874,7 +922,7 @@
                             </div>
                         </div>
 
-                        <div className={`map-panel relative flex-grow bg-white p-4 rounded-xl shadow-lg ${activeView === 'map' ? 'flex' : 'hidden'} lg:flex flex-col`}>
+                        <div className={`map-panel relative flex-grow min-h-0 bg-white p-4 rounded-xl shadow-lg ${activeView === 'map' ? 'flex' : 'hidden'} lg:flex flex-col`}>
                              {/* Scrollable wrapper around the map */}
 
                              <div ref={mapContainerRef} className="w-full h-full overflow-auto" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y' }}>
