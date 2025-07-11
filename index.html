@@ -111,30 +111,9 @@
                 <div className="flex items-center space-x-1 text-indigo-600">
                     <UserIcon className="w-5 h-5" />
                     {isEditing ? (
-                        <input
-                            ref={inputRef}
-                            type="number"
-                            value={size}
-                            onChange={(e) => setSize(e.target.value)}
-                            onBlur={handleSave}
-                            onKeyDown={handleKeyDown}
-                            className="w-12 text-center font-bold text-lg bg-white border border-indigo-300 rounded"
-                            min="0"
-                        />
+                        <input ref={inputRef} type="number" value={size} onChange={(e) => setSize(e.target.value)} onBlur={handleSave} onKeyDown={handleKeyDown} className="w-12 text-center font-bold text-lg bg-white border border-indigo-300 rounded" min="0"/>
                     ) : (
-                        <span
-                            className="font-bold text-lg cursor-pointer px-2 py-1 rounded hover:bg-indigo-100"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                setIsEditing(true);
-                                requestAnimationFrame(() => {
-                                    if (inputRef.current) {
-                                        inputRef.current.focus();
-                                        inputRef.current.select();
-                                    }
-                                });
-                            }}
-                        >{guest.size}</span>
+                        <span className="font-bold text-lg cursor-pointer px-2 py-1 rounded hover:bg-indigo-100" onClick={(e) => { e.stopPropagation(); setIsEditing(true);}}>{guest.size}</span>
                     )}
                 </div>
             );
