@@ -57,6 +57,18 @@
     <script type="text/babel">
         const { useState, useMemo, useRef, useEffect } = React;
 
+        // Example data for staffing requirements and crew availability
+        const DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+        const staffingRequirements = {
+            'Dining Room PM': { Monday: 8, Tuesday: 8, Wednesday: 8, Thursday: 8, Friday: 8, Saturday: 8, Sunday: 8 },
+            'Kitchen PM': { Monday: 5, Tuesday: 5, Wednesday: 5, Thursday: 5, Friday: 5, Saturday: 5, Sunday: 5 },
+            'Bar PM': { Monday: 3, Tuesday: 3, Wednesday: 3, Thursday: 3, Friday: 3, Saturday: 3, Sunday: 3 }
+        };
+        const crewAvailability = {
+            'Dining Room PM': { Monday: 6, Tuesday: 8, Wednesday: 5, Thursday: 8, Friday: 8, Saturday: 6, Sunday: 7 },
+            'Kitchen PM': { Monday: 5, Tuesday: 4, Wednesday: 5, Thursday: 5, Friday: 5, Saturday: 5, Sunday: 4 },
+            'Bar PM': { Monday: 3, Tuesday: 3, Wednesday: 2, Thursday: 3, Friday: 3, Saturday: 2, Sunday: 3 }
+        };
 
         // --- Helper Components ---
 
@@ -401,6 +413,42 @@
                     <button onClick={onZoomIn} className="bg-gray-700 text-white rounded-full w-10 h-10 flex items-center justify-center shadow-lg hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 text-xl">+</button>
                     <button onClick={onZoomOut} className="bg-gray-700 text-white rounded-full w-10 h-10 flex items-center justify-center shadow-lg hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 text-xl">-</button>
                     <button onClick={onReset} className="bg-gray-700 text-white rounded-full w-10 h-10 flex items-center justify-center shadow-lg hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 text-xs">Reset</button>
+                </div>
+            );
+        };
+
+        const MonthlyStaffingStatus = () => {
+            const deficits = useMemo(() => {
+                const res = {};
+                Object.keys(staffingRequirements).forEach(area => {
+                    res[area] = {};
+                    DAYS.forEach(day => {
+                        const required = staffingRequirements[area][day] || 0;
+                        const available = (crewAvailability[area] && crewAvailability[area][day]) || 0;
+                        const diff = required - available;
+                        if (diff > 0) res[area][day] = diff;
+                    });
+                });
+                return res;
+            }, []);
+
+            return (
+                <div className="space-y-4">
+                    <h2 className="text-xl font-bold">Staffing Status</h2>
+                    {Object.entries(deficits).map(([area, days]) => (
+                        <div key={area} className="bg-gray-50 p-3 rounded">
+                            <h3 className="font-semibold">{area}</h3>
+                            {Object.keys(days).length === 0 ? (
+                                <p className="text-green-600 text-sm">Fully staffed all days</p>
+                            ) : (
+                                <ul className="list-disc ml-5 text-sm">
+                                    {Object.entries(days).map(([day, need]) => (
+                                        <li key={day}>{day}: need {need} more</li>
+                                    ))}
+                                </ul>
+                            )}
+                        </div>
+                    ))}
                 </div>
             );
         };
@@ -989,7 +1037,8 @@
                     <div className="mobile-view-switcher p-2 bg-gray-200 lg:hidden sticky top-0 z-10 flex-shrink-0">
                         <div className="flex w-full rounded-md shadow-sm">
                             <button onClick={() => setActiveView('list')} className={`w-full py-2 text-sm font-medium rounded-l-md ${activeView === 'list' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}`}>List View</button>
-                            <button onClick={() => setActiveView('map')} className={`w-full py-2 text-sm font-medium rounded-r-md border-l border-gray-300 ${activeView === 'map' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}`}>Map View</button>
+                            <button onClick={() => setActiveView('map')} className={`w-full py-2 text-sm font-medium border-l border-gray-300 ${activeView === 'map' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}`}>Map View</button>
+                            <button onClick={() => setActiveView('monthly')} className={`w-full py-2 text-sm font-medium rounded-r-md border-l border-gray-300 ${activeView === 'monthly' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}`}>Monthly Status</button>
                         </div>
                     </div>
 
@@ -1026,6 +1075,10 @@
                                 </div>
                             </div>
                             <ZoomControls onZoomIn={() => setScale(s => Math.min(s + 0.1, 2))} onZoomOut={() => setScale(s => Math.max(s - 0.1, 0.2))} onReset={calculateScale} />
+                        </div>
+
+                        <div className={`status-panel flex-grow min-h-0 bg-white p-4 rounded-xl shadow-lg ${activeView === 'monthly' ? 'flex' : 'hidden'} lg:flex flex-col h-full`}>
+                            <MonthlyStaffingStatus />
                         </div>
                     </main>
                 </div>
