@@ -426,13 +426,16 @@
                         const required = staffingRequirements[area][day] || 0;
                         const available = (crewAvailability[area] && crewAvailability[area][day]) || 0;
                         const diff = required - available;
+
                         res[area][day] = diff > 0 ? diff : 0;
+
                     });
                 });
                 return res;
             }, []);
 
             return (
+
                 <div className="space-y-4 overflow-auto">
                     <h2 className="text-xl font-bold mb-2">Staffing Status</h2>
                     <table className="min-w-full table-auto border-collapse text-sm">
@@ -457,6 +460,7 @@
                             ))}
                         </tbody>
                     </table>
+
                 </div>
             );
         };
