@@ -381,6 +381,22 @@
             );
         };
 
+        const SplashScreen = ({ layoutOptions, selectedLayout, onSelectLayout, onImportGuests, onStart }) => {
+            return (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm space-y-4" onClick={e => e.stopPropagation()}>
+                        <h2 className="text-2xl font-bold text-gray-800 text-center">Select Layout</h2>
+                        <select value={selectedLayout} onChange={e => onSelectLayout(e.target.value)} className="w-full border rounded p-2">
+                            <option value="">-- Choose Layout --</option>
+                            {layoutOptions.map(opt => <option key={opt.file} value={opt.file}>{opt.name}</option>)}
+                        </select>
+                        <button onClick={onImportGuests} className="w-full bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700">Import Guests</button>
+                        <button onClick={onStart} disabled={!selectedLayout} className="w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 disabled:opacity-50">Start</button>
+                    </div>
+                </div>
+            );
+        };
+
         function App() {
             const [tables, setTables] = useState([]);
             const [guests, setGuests] = useState([]);
@@ -400,31 +416,35 @@
             }, [scale]);
 
             const [confirmModalState, setConfirmModalState] = useState({ isOpen: false, guestId: null });
+            const [showSplash, setShowSplash] = useState(true);
+            const [layoutOptions, setLayoutOptions] = useState([]);
+            const [selectedLayoutFile, setSelectedLayoutFile] = useState("");
 
-	    useEffect(() => {
-          fetch('./layout.json')
-            .then(res => {
-              if (!res.ok) throw new Error('layout.json not found');
-              return res.json();
-            })
-            .then(layoutData => {
-              if (!Array.isArray(layoutData)) {
-                console.error('layout.json must export an array of tables');
-                return;
-              }
-              setTables(layoutData.map((t, i) => ({
-                internalId: t.internalId || `table-${i}`,
-                displayId:  t.displayId  || `${i+1}`,
-                orientation: (t.orientation === 'vertical' ? 'vertical' : 'horizontal'),
-                gridCol:     t.gridCol,
-                gridRow:     t.gridRow,
-                capacity:    t.capacity || 10
-              })));
-            })
-            .catch(err => {
-              console.warn(err.message);
-            });
-        }, []);
+            useEffect(() => {
+                fetch('./layouts/layouts.json')
+                    .then(res => res.json())
+                    .then(data => setLayoutOptions(data))
+                    .catch(err => console.warn('Failed to load layouts list', err));
+            }, []);
+
+            const parseLayoutData = (layoutData) => {
+                if (!Array.isArray(layoutData)) throw new Error('Layout file must be a JSON array.');
+                return layoutData.map((table, index) => ({
+                    internalId: table.internalId || `table-${index}-${Date.now()}`,
+                    displayId: table.displayId || `${index + 1}`,
+                    orientation: table.orientation === 'vertical' ? 'vertical' : 'horizontal',
+                    gridCol: table.gridCol,
+                    gridRow: table.gridRow,
+                    capacity: table.capacity || 10
+                }));
+            };
+
+            const loadLayoutFromUrl = (url) => {
+                fetch(url)
+                    .then(res => { if (!res.ok) throw new Error('layout file not found'); return res.json(); })
+                    .then(data => { const newTables = parseLayoutData(data); setTables(newTables); handleReset(); })
+                    .catch(err => displayNotification(`Failed to load layout: ${err.message}`, 'error'));
+            };
 
             const mapContainerRef = useRef(null);
             const mapContentRef = useRef(null);
@@ -830,21 +850,13 @@
                 e.target.value = null;
             };
 
-             const handleLayoutFileChange = (e) => {
+            const handleLayoutFileChange = (e) => {
                 const file = e.target.files[0]; if (!file) return;
                 const reader = new FileReader();
                 reader.onload = (event) => {
                     try {
                         const layoutData = JSON.parse(event.target.result);
-                        if (!Array.isArray(layoutData)) throw new Error("Layout file must be a JSON array.");
-                        const newTables = layoutData.map((table, index) => ({
-                            internalId: table.internalId || `table-${index}-${Date.now()}`,
-                            displayId: table.displayId || `${index + 1}`,
-                            orientation: table.orientation === 'vertical' ? 'vertical' : 'horizontal',
-                            gridCol: table.gridCol,
-                            gridRow: table.gridRow,
-                            capacity: table.capacity || 10
-                        }));
+                        const newTables = parseLayoutData(layoutData);
                         setTables(newTables);
                         handleReset();
                     } catch (err) { displayNotification(`Failed to parse layout file: ${err.message}`, 'error'); }
@@ -927,6 +939,12 @@
                 unassignGuest(guestId);
             };
 
+            const startApp = () => {
+                if (!selectedLayoutFile) return;
+                loadLayoutFromUrl(`./layouts/${selectedLayoutFile}`);
+                setShowSplash(false);
+            };
+
             const handleReassignInModal = (guestId) => {
                 setSelectedGuestId(guestId);
                 setModalData(null);
@@ -953,6 +971,15 @@
                 <div className="bg-gray-100 h-screen font-sans flex flex-col">
 
                     <Notification message={notification?.msg} type={notification?.type} onDismiss={() => setNotification(null)} />
+                    {showSplash && (
+                        <SplashScreen
+                            layoutOptions={layoutOptions}
+                            selectedLayout={selectedLayoutFile}
+                            onSelectLayout={setSelectedLayoutFile}
+                            onImportGuests={() => guestFileInputRef.current.click()}
+                            onStart={startApp}
+                        />
+                    )}
                     <ConfirmationModal
                         isOpen={confirmModalState.isOpen}
                         onClose={() => setConfirmModalState({ isOpen: false, guestId: null })}
