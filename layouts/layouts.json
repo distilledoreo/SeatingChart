@@ -1,7 +1,5 @@
 [
   {"file": "patterson.json", "name": "Patterson"},
-  {"file": "patterson1.json", "name": "Patterson Test 1"},
-  {"file": "patterson2.json", "name": "Patterson Test 2"},
   {"file": "wallkill.json", "name": "Wallkill"},
   {"file": "warwick.json", "name": "Warwick"}
 ]
