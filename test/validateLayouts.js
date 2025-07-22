@@ -16,7 +16,9 @@ function getJsonFiles(dir) {
         files = files.concat(getJsonFiles(full));
       }
     } else if (entry.isFile() && entry.name.endsWith('.json')) {
-      files.push(full);
+      if (entry.name !== 'layouts.json') {
+        files.push(full);
+      }
     }
   }
   return files;
