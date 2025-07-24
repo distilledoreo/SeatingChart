@@ -987,12 +987,20 @@
             const unmergeGuest = (guestId) => {
                 const guest = guests.find(g => g.id === guestId);
                 if (!guest || !guest.children) return;
-                const newGuests = guests.filter(g => g.id !== guestId);
+
+                const keyFor = g => g.children && g.children.map(c => c.id).sort().join('|');
+                const targetKey = keyFor(guest);
+
+                const toRemove = guests.filter(g => keyFor(g) === targetKey);
+                let newGuests = guests.filter(g => !toRemove.some(r => r.id === g.id));
+
+                toRemove.forEach(g => unassignGuest(g.id));
+
                 guest.children.forEach(child => {
                     newGuests.push({ ...child });
                     unassignGuest(child.id);
                 });
-                unassignGuest(guestId);
+
                 setGuests(newGuests);
                 setSelectedGuestId(null);
                 displayNotification(`Unmerged "${guest.name}"`, 'info');
