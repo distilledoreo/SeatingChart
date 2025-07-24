@@ -230,12 +230,15 @@
             );
         };
 
-        const GuestCard = ({ guest, onSizeChange, onNotesChange, isSelected, onClick }) => {
+        const GuestCard = ({ guest, onSizeChange, onNotesChange, isSelected, onClick, onMerge }) => {
           return (
-            <div onClick={onClick} className={`p-3 mb-2 rounded-lg shadow-md cursor-pointer flex flex-col items-start justify-center text-sm transition-all duration-200 ease-in-out bg-white hover:bg-gray-50 ${isSelected ? 'ring-2 ring-blue-500' : 'ring-1 ring-transparent'}`}> 
+            <div onClick={onClick} className={`p-3 mb-2 rounded-lg shadow-md cursor-pointer flex flex-col items-start justify-center text-sm transition-all duration-200 ease-in-out bg-white hover:bg-gray-50 ${isSelected ? 'ring-2 ring-blue-500' : 'ring-1 ring-transparent'}`}>
               <div className="flex items-center justify-between w-full">
                 <span className="font-semibold text-gray-800">{guest.name}</span>
-                <EditablePartySize guest={guest} onSizeChange={onSizeChange} />
+                <div className="flex items-center gap-1">
+                  <EditablePartySize guest={guest} onSizeChange={onSizeChange} />
+                  <button onClick={(e) => { e.stopPropagation(); onMerge(guest.id); }} className="bg-blue-500 text-white text-xs px-1 rounded hover:bg-blue-600">Merge</button>
+                </div>
               </div>
               <EditableNote guest={guest} onNotesChange={onNotesChange} />
             </div>
@@ -290,7 +293,7 @@
             );
         };
 
-        const ReservationDetailsModal = ({ table, guests, onClose, onUnassign, onReassign, onSizeChange }) => {
+        const ReservationDetailsModal = ({ table, guests, onClose, onUnassign, onReassign, onSizeChange, onMerge }) => {
             if (!table) return null;
             return (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={onClose}>
@@ -303,6 +306,7 @@
                                         <h3 className="font-bold text-lg text-gray-900">{guest.name}</h3>
                                         <div className="flex flex-wrap items-center gap-2">
                                             <EditablePartySize guest={guest} onSizeChange={onSizeChange} />
+                                            <button onClick={() => onMerge(guest.id)} className="bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded hover:bg-blue-600">Merge</button>
                                             <button onClick={() => onReassign(guest.id)} className="bg-green-500 text-white text-xs font-bold px-2 py-1 rounded hover:bg-green-600">Reassign</button>
                                             <button onClick={() => onUnassign(guest.id)} className="bg-red-500 text-white text-xs font-bold px-2 py-1 rounded hover:bg-red-600">Unassign</button>
                                         </div>
@@ -403,6 +407,7 @@
             const [assignments, setAssignments] = useState({});
             const [notification, setNotification] = useState(null);
             const [selectedGuestId, setSelectedGuestId] = useState(null);
+            const [mergeSourceId, setMergeSourceId] = useState(null);
             const [modalData, setModalData] = useState(null);
             const [isAddPartyModalOpen, setIsAddPartyModalOpen] = useState(false);
             const [activeView, setActiveView] = useState('list');
@@ -916,7 +921,45 @@
             };
             const unassignGuest = (guestId) => { if (assignments[guestId]) { setAssignments(prev => { const newAssignments = { ...prev }; delete newAssignments[guestId]; return newAssignments; }); } };
 
+            const handleStartMerge = (guestId) => {
+                if (mergeSourceId && mergeSourceId !== guestId) {
+                    mergeGuests(mergeSourceId, guestId);
+                    return;
+                }
+                const guest = guests.find(g => g.id === guestId);
+                if (!guest) return;
+                setMergeSourceId(guestId);
+                setModalData(null);
+                displayNotification(`Select another party to merge with "${guest.name}".`, 'info');
+            };
+
+            const mergeGuests = (fromId, toId) => {
+                if (!fromId || fromId === toId) { setMergeSourceId(null); return; }
+                const fromGuest = guests.find(g => g.id === fromId);
+                const toGuest = guests.find(g => g.id === toId);
+                if (!fromGuest || !toGuest) { setMergeSourceId(null); return; }
+
+                const merged = {
+                    ...fromGuest,
+                    name: `${fromGuest.name} + ${toGuest.name}`,
+                    size: fromGuest.size + toGuest.size,
+                    notes: [fromGuest.notes, toGuest.notes].filter(Boolean).join('\n')
+                };
+                setGuests(current => current
+                    .map(g => g.id === fromId ? merged : g)
+                    .filter(g => g.id !== toId));
+                unassignGuest(fromId);
+                unassignGuest(toId);
+                setSelectedGuestId(null);
+                displayNotification(`Merged "${fromGuest.name}" with "${toGuest.name}"`, 'info');
+                setMergeSourceId(null);
+            };
+
             const handleGuestCardClick = (guestId) => {
+                if (mergeSourceId) {
+                    mergeGuests(mergeSourceId, guestId);
+                    return;
+                }
                 if (selectedGuestId === guestId) {
                     setSelectedGuestId(null);
                 } else {
@@ -928,6 +971,7 @@
             };
 
             const handleTableClick = (table) => {
+                if (mergeSourceId) return;
                 if (selectedGuestId) {
                     assignGuestToTable(selectedGuestId, table.internalId);
                 } else {
@@ -988,7 +1032,7 @@
                     >
                         Are you sure you want to remove the party "<strong>{guestToConfirm?.name}</strong>"? This action cannot be undone.
                     </ConfirmationModal>
-                    <ReservationDetailsModal table={modalTable} guests={modalGuests} onClose={() => setModalData(null)} onUnassign={handleUnassignInModal} onReassign={handleReassignInModal} onSizeChange={handleGuestSizeChange} />
+                    <ReservationDetailsModal table={modalTable} guests={modalGuests} onClose={() => setModalData(null)} onUnassign={handleUnassignInModal} onReassign={handleReassignInModal} onSizeChange={handleGuestSizeChange} onMerge={handleStartMerge} />
                     <AddPartyModal isOpen={isAddPartyModalOpen} onClose={() => setIsAddPartyModalOpen(false)} onAddParty={handleAddParty} />
 
                     <header className="landscape-header p-4 sm:p-6 lg:p-4 w-full flex-shrink-0">
@@ -1024,7 +1068,7 @@
                                 </button>
                             </div>
                             <div className="overflow-y-auto flex-grow p-4" style={{ WebkitOverflowScrolling: 'touch' }}>
-                                {guests.length > 0 ? ( unassignedGuests.map(guest => <GuestCard key={guest.id} guest={guest} onSizeChange={handleGuestSizeChange} onNotesChange={handleGuestNotesChange} isSelected={selectedGuestId === guest.id} onClick={() => handleGuestCardClick(guest.id)} />)
+                                {guests.length > 0 ? ( unassignedGuests.map(guest => <GuestCard key={guest.id} guest={guest} onSizeChange={handleGuestSizeChange} onNotesChange={handleGuestNotesChange} isSelected={selectedGuestId === guest.id} onClick={() => handleGuestCardClick(guest.id)} onMerge={handleStartMerge} />)
                                 ) : (<div className="text-center text-gray-500 mt-10 p-4 bg-gray-50 rounded-lg"><h3 className="font-semibold text-lg">No Guests</h3><p className="text-sm">Import a guest list to get started.</p></div>)}
                             </div>
                         </div>
