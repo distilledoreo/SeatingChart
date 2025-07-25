@@ -880,7 +880,48 @@
                 if (newSize === 0) {
                     setConfirmModalState({ isOpen: true, guestId: guestId });
                 } else {
-                    setGuests(currentGuests => currentGuests.map(g => g.id === guestId ? { ...g, size: newSize } : g));
+                    const keyFor = g => g.children && g.children.map(c => c.id).sort().join('|');
+                    const guest = guests.find(g => g.id === guestId);
+
+                    setGuests(currentGuests => {
+                        if (!guest) return currentGuests;
+                        const groupKey = keyFor(guest);
+                        const relatedGuests = groupKey ? currentGuests.filter(g => keyFor(g) === groupKey) : [];
+
+                        let updatedChildren = guest.children;
+                        if (guest.children && guest.children.length > 1) {
+                            const totalOtherSegments = relatedGuests.filter(g => g.id !== guestId).reduce((sum, g) => sum + g.size, 0);
+                            let desiredTotal = newSize + totalOtherSegments;
+                            const minTotal = guest.children.length;
+                            if (desiredTotal < minTotal) desiredTotal = minTotal;
+
+                            const childCopy = guest.children.map(c => ({ ...c }));
+                            let currentTotal = childCopy.reduce((sum, c) => sum + c.size, 0);
+                            let diff = desiredTotal - currentTotal;
+
+                            if (diff >= 0) {
+                                childCopy[0].size += diff;
+                            } else {
+                                for (let i = 0; i < childCopy.length && diff < 0; i++) {
+                                    const reducible = Math.min(childCopy[i].size - 1, -diff);
+                                    childCopy[i].size -= reducible;
+                                    diff += reducible;
+                                }
+                            }
+                            updatedChildren = childCopy;
+                        }
+
+                        return currentGuests.map(g => {
+                            if (g.id === guestId) {
+                                return { ...g, size: newSize, children: updatedChildren };
+                            }
+                            if (groupKey && keyFor(g) === groupKey) {
+                                return { ...g, children: updatedChildren };
+                            }
+                            return g;
+                        });
+                    });
+
                     const assignedTableId = assignments[guestId];
                     if (assignedTableId) {
                         const tableData = tables.find(t => t.internalId === assignedTableId);
@@ -888,7 +929,6 @@
                         const newTotal = currentTableGuests.reduce((sum, g) => sum + g.size, 0) + newSize;
                         if (newTotal > tableData.capacity) {
                             unassignGuest(guestId);
-                            // Find the guest name for the notification
                             const guestToUpdate = guests.find(g => g.id === guestId);
                             displayNotification(`"${guestToUpdate.name}" unassigned: new size (${newSize}) exceeds table capacity.`, 'info');
                         }
