@@ -801,12 +801,12 @@
 
                         if (Array.isArray(data[0])) {
                             const headers = data[0].map(h => (h || '').toString().trim().toLowerCase());
-                            const hostNamePos = headers.indexOf('host name');
-                            const seatsRequiredPos = headers.indexOf('seats required');
-                            if (hostNamePos !== -1 && seatsRequiredPos !== -1) {
+                            const hostPos = headers.indexOf('host name');
+                            const seatsPos = headers.indexOf('seats required');
+                            if (hostPos !== -1 && seatsPos !== -1) {
                                 startRow = 1;
-                                nameIdx = hostNamePos;
-                                sizeIdx = seatsRequiredPos;
+                                nameIdx = hostPos;
+                                sizeIdx = seatsPos;
                                 notesIdx = headers.indexOf('notes');
                             }
                         }
@@ -863,7 +863,7 @@
                         const text = event.target.result;
                         const lines = text.split(/\r?\n/).filter(line => line.trim() !== "");
                         const delimiter = text.indexOf(";") !== -1 && (text.indexOf(";") < text.indexOf(",") || text.indexOf(",") === -1) ? ";" : ",";
-                        const regex = delimiter === "," ? /,(?=(?:(?:[^"]*\"{2})*[^"]*$)/ : /;(?=(?:(?:[^"]*\"{2})*[^"]*$)/;
+                        const regex = delimiter === "," ? /,(?=(?:(?:[^"]*\"){2})*[^"]*$)/ : /;(?=(?:(?:[^"]*\"){2})*[^"]*$)/;
                         const csvData = lines.map(line => line.split(regex));
                         processGuestData(csvData);
                     };

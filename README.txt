@@ -58,12 +58,11 @@ Run `node test/validateLayouts.js` to verify all layout files. The script checks
 
 ## Guest List Format
 
-Guest lists can be provided as `.csv` or `.xlsx` files and must include a header row with at least the following columns:
+Guest lists may include a header row with at least these columns:
 
 - **Meal Date** (ignored)
-- **Host Name** – becomes the party name
+- **Host Name** – used as the party name
 - **Seats Required** – total party size
 - **Notes** – optional notes
 
-Additional columns such as **Total Guests** are ignored. Older files without headers are still supported; in that case, the first column is treated as the name, the second as the size and any remaining columns as notes.
-
+Any additional columns, like **Total Guests**, are ignored. Files without headers are still accepted, treating the first column as the name and the second as the size.
