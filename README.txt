@@ -55,3 +55,15 @@ Here is a template based on the final layout we created. You can copy this, save
 ## Layout Validation Test
 
 Run `node test/validateLayouts.js` to verify all layout files. The script checks every `*.json` file for required fields and duplicate `internalId` values.
+
+## Guest List Format
+
+Guest lists can be provided as `.csv` or `.xlsx` files and must include a header row with at least the following columns:
+
+- **Meal Date** (ignored)
+- **Host Name** – becomes the party name
+- **Seats Required** – total party size
+- **Notes** – optional notes
+
+Additional columns such as **Total Guests** are ignored. Older files without headers are still supported; in that case, the first column is treated as the name, the second as the size and any remaining columns as notes.
+
