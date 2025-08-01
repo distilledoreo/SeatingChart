@@ -947,7 +947,21 @@
                 setConfirmModalState({ isOpen: false, guestId: null });
             };
             
-            const handleGuestNotesChange = (guestId, newNotes) => { setGuests(currentGuests => currentGuests.map(g => g.id === guestId ? { ...g, notes: newNotes } : g)); };
+            const handleGuestNotesChange = (guestId, newNotes) => {
+                const keyFor = g => g.children && g.children.map(c => c.id).sort().join('|');
+                const guest = guests.find(g => g.id === guestId);
+                setGuests(currentGuests => {
+                    if (!guest || !guest.children) {
+                        return currentGuests.map(g => g.id === guestId ? { ...g, notes: newNotes } : g);
+                    }
+                    const groupKey = keyFor(guest);
+                    return currentGuests.map(g =>
+                        (g.id === guestId || (groupKey && keyFor(g) === groupKey))
+                            ? { ...g, notes: newNotes }
+                            : g
+                    );
+                });
+            };
 
             const handleAddParty = (name, size) => {
                 const newParty = { id: `new-g-${Date.now()}`, name, size, notes: '' };
@@ -989,9 +1003,16 @@
                     mergeGuests(mergeSourceId, guestId);
                     return;
                 }
+                if (mergeSourceId === guestId) {
+                    setMergeSourceId(null);
+                    setSelectedGuestId(null);
+                    displayNotification('Merge cancelled.', 'info');
+                    return;
+                }
                 const guest = guests.find(g => g.id === guestId);
                 if (!guest) return;
                 setMergeSourceId(guestId);
+                setSelectedGuestId(null);
                 setModalData(null);
                 displayNotification(`Select another party to merge with "${guest.name}".`, 'info');
             };
@@ -1006,19 +1027,28 @@
                 const toGuest = guests.find(g => g.id === toId);
                 if (!fromGuest || !toGuest) { setMergeSourceId(null); return; }
 
-                const getChildren = (g) => g.children ? g.children : [{ id: g.id, name: g.name, size: g.size, notes: g.notes }];
-                const merged = {
-                    id: fromGuest.id,
-                    name: `${fromGuest.name} + ${toGuest.name}`,
-                    size: fromGuest.size + toGuest.size,
-                    notes: [fromGuest.notes, toGuest.notes].filter(Boolean).join('\n'),
-                    children: [...getChildren(fromGuest), ...getChildren(toGuest)]
+                const keyFor = g => g.children && g.children.map(c => c.id).sort().join('|');
+                const getChildren = g => g.children ? g.children : [{ id: g.id, name: g.name, size: g.size, notes: g.notes }];
+                const getSegments = guest => {
+                    const key = keyFor(guest);
+                    return key ? guests.filter(g => keyFor(g) === key) : [guest];
                 };
-                setGuests(current => current
-                    .map(g => g.id === fromId ? merged : g)
-                    .filter(g => g.id !== toId));
-                unassignGuest(fromId);
-                unassignGuest(toId);
+
+                const segments = [...getSegments(fromGuest), ...getSegments(toGuest)];
+                const childMap = new Map();
+                segments.forEach(seg => {
+                    getChildren(seg).forEach(child => childMap.set(child.id, child));
+                });
+                const mergedChildren = Array.from(childMap.values());
+                const mergedSize = mergedChildren.reduce((sum, c) => sum + c.size, 0);
+                const mergedName = mergedChildren.map(c => c.name).join(' + ');
+                const mergedNotes = segments.map(s => s.notes).filter(Boolean).join('\n');
+
+                const merged = { id: `merged-${Date.now()}`, name: mergedName, size: mergedSize, notes: mergedNotes, children: mergedChildren };
+
+                const remaining = guests.filter(g => !segments.some(s => s.id === g.id));
+                setGuests([...remaining, merged]);
+                segments.forEach(s => unassignGuest(s.id));
                 setSelectedGuestId(null);
                 displayNotification(`Merged "${fromGuest.name}" with "${toGuest.name}"`, 'info');
                 setMergeSourceId(null);
@@ -1043,6 +1073,7 @@
 
                 setGuests(newGuests);
                 setSelectedGuestId(null);
+                setMergeSourceId(null);
                 displayNotification(`Unmerged "${guest.name}"`, 'info');
             };
 
