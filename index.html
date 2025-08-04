@@ -213,7 +213,7 @@
             );
         };
 
-        const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, children }) => {
+        const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, children, confirmText = 'Confirm' }) => {
             if (!isOpen) return null;
 
             return (
@@ -223,7 +223,7 @@
                         <div className="text-gray-600 mb-6">{children}</div>
                         <div className="flex justify-end space-x-3">
                             <button onClick={onClose} className="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg hover:bg-gray-300 transition-colors">Cancel</button>
-                            <button onClick={onConfirm} className="bg-red-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-red-700 transition-colors">Confirm</button>
+                            <button onClick={onConfirm} className="bg-red-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-red-700 transition-colors">{confirmText}</button>
                         </div>
                     </div>
                 </div>
@@ -247,27 +247,6 @@
           );
         };
 
-        const UnmergeModal = ({ guest, onOption, onClose }) => {
-            if (!guest) return null;
-            const originals = guest.mergedFrom || [];
-            return (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={onClose}>
-                    <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
-                        <h2 className="text-xl font-bold text-gray-800 mb-4">Unmerge "{guest.name}"</h2>
-                        <div className="space-y-2">
-                            <button onClick={() => onOption('keep')} className="w-full bg-green-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-600 transition-colors text-sm">Unmerge while keeping all parties seated</button>
-                            <button onClick={() => onOption('unassign_all')} className="w-full bg-red-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-red-600 transition-colors text-sm">Unmerge and unassign all merged parties</button>
-                            {originals.map(o => (
-                                <button key={o.guest.id} onClick={() => onOption(`unassign_${o.guest.id}`)} className="w-full bg-yellow-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-yellow-600 transition-colors text-sm">Unmerge and unassign {o.guest.name}</button>
-                            ))}
-                        </div>
-                        <div className="flex justify-end mt-4">
-                            <button onClick={onClose} className="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg hover:bg-gray-300 transition-colors">Cancel</button>
-                        </div>
-                    </div>
-                </div>
-            );
-        };
 
         const TableVisual = ({ table, assignedGuests, onClick, isSelectedGuest, orientation = 'vertical' }) => {
             const totalAssigned = assignedGuests.reduce((sum, g) => sum + g.assignedSeats, 0);
@@ -1005,15 +984,10 @@
                 }
             };
 
-            const performUnmerge = (mergedGuestId, option) => {
+            const performUnmerge = (mergedGuestId) => {
                 const mergedGuest = guests.find(g => g.id === mergedGuestId);
                 if (!mergedGuest || !mergedGuest.mergedFrom) return;
                 const originals = mergedGuest.mergedFrom;
-                const unassignAll = option === 'unassign_all';
-                let unassignId = null;
-                if (option && option.startsWith('unassign_')) {
-                    unassignId = option.split('_')[1];
-                }
                 setGuests(curr => {
                     const withoutMerged = curr.filter(g => g.id !== mergedGuestId);
                     const restored = originals.map(o => ({ ...o.guest }));
@@ -1022,26 +996,19 @@
                 setAssignments(prev => {
                     const newAssignments = { ...prev };
                     delete newAssignments[mergedGuestId];
-                    if (!unassignAll) {
-                        originals.forEach(o => {
-                            if (o.guest.id !== unassignId && o.assignments.length > 0) {
-                                newAssignments[o.guest.id] = o.assignments.map(p => ({ ...p }));
-                            }
-                        });
-                    }
                     return newAssignments;
                 });
                 if (selectedGuestId === mergedGuestId) setSelectedGuestId(null);
             };
 
             const handleGuestUnmerge = (guestId) => {
-                performUnmerge(guestId, 'unassign_all');
+                performUnmerge(guestId);
             };
 
             const openUnmergeModal = (guestId) => setUnmergeModalState({ isOpen: true, guestId });
             const closeUnmergeModal = () => setUnmergeModalState({ isOpen: false, guestId: null });
-            const handleUnmergeOption = (option) => {
-                performUnmerge(unmergeModalState.guestId, option);
+            const handleUnmergeConfirm = () => {
+                performUnmerge(unmergeModalState.guestId);
                 closeUnmergeModal();
             };
 
@@ -1141,7 +1108,17 @@
                         Are you sure you want to remove the party "<strong>{guestToConfirm?.name}</strong>"? This action cannot be undone.
                     </ConfirmationModal>
                     <ReservationDetailsModal table={modalTable} guests={modalGuests} assignments={assignments} tables={tables} onClose={() => setModalData(null)} onUnassign={handleUnassignInModal} onReassign={handleReassignInModal} onSizeChange={handleGuestSizeChange} onUnmerge={openUnmergeModal} />
-                    <UnmergeModal guest={unmergeGuest} onOption={handleUnmergeOption} onClose={closeUnmergeModal} />
+                    {unmergeModalState.isOpen && unmergeGuest && (
+                        <ConfirmationModal
+                            isOpen={true}
+                            onClose={closeUnmergeModal}
+                            onConfirm={handleUnmergeConfirm}
+                            title={`Unmerge "${unmergeGuest.name}"?`}
+                            confirmText="Yes"
+                        >
+                            Unmerging these parties will unassign their seats and return them to the guest list. Would you like to proceed?
+                        </ConfirmationModal>
+                    )}
                     <AddPartyModal isOpen={isAddPartyModalOpen} onClose={() => setIsAddPartyModalOpen(false)} onAddParty={handleAddParty} />
 
                     <header className="landscape-header p-4 sm:p-6 lg:p-4 w-full flex-shrink-0">
