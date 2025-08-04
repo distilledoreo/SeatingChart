@@ -976,7 +976,10 @@
                 const newName = guestsToMerge.map(g => g.name).join(' + ');
                 const newSize = guestsToMerge.reduce((sum, g) => sum + g.size, 0);
                 const newNotes = guestsToMerge.map(g => g.notes).filter(Boolean).join(' | ');
-                const mergedFrom = guestsToMerge.map(g => ({ guest: g, assignments: assignments[g.id] || [] }));
+                const mergedFrom = guestsToMerge.map(g => ({
+                    guest: { ...g },
+                    assignments: (assignments[g.id] || []).map(p => ({ ...p }))
+                }));
                 const assignmentMap = {};
                 mergedFrom.forEach(({ assignments: parts }) => {
                     parts.forEach(p => {
@@ -1006,48 +1009,23 @@
                 const mergedGuest = guests.find(g => g.id === mergedGuestId);
                 if (!mergedGuest || !mergedGuest.mergedFrom) return;
                 const originals = mergedGuest.mergedFrom;
-                const mergedAssignments = assignments[mergedGuestId] || [];
                 const unassignAll = option === 'unassign_all';
-                const keepAll = option === 'keep';
                 let unassignId = null;
                 if (option && option.startsWith('unassign_')) {
                     unassignId = option.split('_')[1];
                 }
-                const keepList = originals.filter(o => keepAll || (!unassignAll && o.guest.id !== unassignId));
-                const distribute = () => {
-                    const result = {};
-                    if (keepList.length === 0) return result;
-                    let idx = 0;
-                    const remaining = keepList.map(o => o.guest.size);
-                    mergedAssignments.forEach(part => {
-                        let seats = part.seats;
-                        while (seats > 0 && idx < keepList.length) {
-                            const need = remaining[idx];
-                            if (need === 0) { idx++; continue; }
-                            const take = Math.min(need, seats);
-                            const gid = keepList[idx].guest.id;
-                            if (!result[gid]) result[gid] = [];
-                            result[gid].push({ tableId: part.tableId, seats: take });
-                            remaining[idx] -= take;
-                            seats -= take;
-                            if (remaining[idx] === 0) idx++;
-                        }
-                    });
-                    return result;
-                };
-                const distribution = distribute();
                 setGuests(curr => {
                     const withoutMerged = curr.filter(g => g.id !== mergedGuestId);
-                    const restored = originals.map(o => o.guest);
+                    const restored = originals.map(o => ({ ...o.guest }));
                     return [...withoutMerged, ...restored];
                 });
                 setAssignments(prev => {
                     const newAssignments = { ...prev };
                     delete newAssignments[mergedGuestId];
                     if (!unassignAll) {
-                        Object.entries(distribution).forEach(([gid, parts]) => {
-                            if (parts.length > 0) {
-                                newAssignments[gid] = parts;
+                        originals.forEach(o => {
+                            if (o.guest.id !== unassignId && o.assignments.length > 0) {
+                                newAssignments[o.guest.id] = o.assignments.map(p => ({ ...p }));
                             }
                         });
                     }
