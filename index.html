@@ -987,6 +987,7 @@
             };
 
             const handleReassignInModal = (guestId) => {
+                unassignGuest(guestId);
                 setSelectedGuestId(guestId);
                 setModalData(null);
                 const guest = guests.find(g => g.id === guestId);
