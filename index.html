@@ -1112,7 +1112,7 @@
 
             return (
 
-                <div className="bg-gray-100 h-screen font-sans flex flex-col">
+                <div className="bg-gray-100 h-full font-sans flex flex-col">
 
                     <Notification message={notification?.msg} type={notification?.type} onDismiss={() => setNotification(null)} />
                     {showSplash && (
@@ -1169,7 +1169,7 @@
                     </div>
 
 
-                    <main className="landscape-main flex-grow min-h-0 flex flex-col lg:flex-row gap-8 p-4 sm:p-6 lg:p-4 lg:overflow-hidden h-full">
+                    <main className="landscape-main flex-grow min-h-0 flex flex-col lg:flex-row gap-8 p-4 sm:p-6 lg:p-4 lg:overflow-hidden">
                         <div className={`guest-list-panel flex-grow min-h-0 lg:flex-grow-0 lg:w-96 lg:flex-shrink-0 bg-white rounded-xl shadow-lg border border-gray-200 flex flex-col h-full ${activeView === 'list' ? 'flex' : 'hidden'} lg:flex`}>
 
                             <div className="flex justify-between items-center p-4 border-b flex-shrink-0">
