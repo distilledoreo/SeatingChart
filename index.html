@@ -51,8 +51,32 @@
     </style>
 </head>
 <body>
+    <div id="splash" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-white hidden">
+        <img src="Adjust%20Multi-Table%20Parties.gif" alt="Adjust Multi-Table Parties animation" class="max-w-xs w-full h-auto" />
+        <button id="splashSkip" class="mt-4 px-4 py-2 bg-indigo-600 text-white rounded">Skip</button>
+    </div>
 
     <div id="root"></div>
+
+    <script>
+        (function () {
+            const splash = document.getElementById('splash');
+            const skipBtn = document.getElementById('splashSkip');
+            const shouldShow = !localStorage.getItem('sawSplash') && !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            if (!shouldShow) {
+                splash.remove();
+                return;
+            }
+            splash.classList.remove('hidden');
+            const dismiss = () => {
+                splash.classList.add('transition-opacity', 'duration-500', 'opacity-0');
+                splash.addEventListener('transitionend', () => splash.remove(), { once: true });
+                localStorage.setItem('sawSplash', 'true');
+            };
+            skipBtn.addEventListener('click', dismiss);
+            setTimeout(dismiss, 4000);
+        })();
+    </script>
 
     <script type="text/babel">
         const { useState, useMemo, useRef, useEffect } = React;
@@ -70,38 +94,35 @@
         );
 
         const EditablePartySize = ({ guest, onSizeChange }) => {
-            const [isEditing, setIsEditing] = useState(false);
-            const [size, setSize] = useState(guest.size);
-            const inputRef = useRef(null);
-            useEffect(() => {
-                if (isEditing && inputRef.current) {
-                    inputRef.current.select();
+            const adjust = (delta) => {
+                let newSize = guest.size + delta;
+                if (newSize < 0) newSize = 0;
+                if (newSize !== guest.size) {
+                    onSizeChange(guest.id, newSize);
                 }
-            }, [isEditing]);
-            // keep local size state in sync with guest prop
-            useEffect(() => {
-                if (!isEditing) {
-                    setSize(guest.size);
-                }
-            }, [guest.size, isEditing]);
-            const handleSave = () => {
-                setIsEditing(false);
-                const newSize = parseInt(size, 10);
-                if (!isNaN(newSize) && newSize >= 0 && newSize !== guest.size) { onSizeChange(guest.id, newSize); }
-                else { setSize(guest.size); }
-            };
-            const handleKeyDown = (e) => {
-                if (e.key === 'Enter') handleSave();
-                else if (e.key === 'Escape') { setSize(guest.size); setIsEditing(false); }
             };
             return (
-                <div className="flex items-center space-x-1 text-indigo-600">
+                <div className="flex items-center space-x-1 text-indigo-600 select-none">
                     <UserIcon className="w-5 h-5" />
-                    {isEditing ? (
-                        <input ref={inputRef} autoFocus type="number" value={size} onChange={(e) => setSize(e.target.value)} onBlur={handleSave} onKeyDown={handleKeyDown} className="w-12 text-center font-bold text-lg bg-white border border-indigo-300 rounded" min="0"/>
-                    ) : (
-                        <span className="font-bold text-lg cursor-pointer px-2 py-1 rounded hover:bg-indigo-100" onClick={(e) => { e.stopPropagation(); setIsEditing(true);}}>{guest.size}</span>
-                    )}
+                    <button onClick={(e) => { e.stopPropagation(); adjust(-1); }} className="w-6 h-6 flex items-center justify-center bg-indigo-200 text-indigo-800 rounded-full">-</button>
+                    <span className="w-8 text-center font-bold text-lg">{guest.size}</span>
+                    <button onClick={(e) => { e.stopPropagation(); adjust(1); }} className="w-6 h-6 flex items-center justify-center bg-indigo-200 text-indigo-800 rounded-full">+</button>
+                </div>
+            );
+        };
+
+        const EditableAssignedSeats = ({ guest, tableId, assignedSeats, onSeatsChange }) => {
+            const adjust = (delta) => {
+                let newSeats = assignedSeats + delta;
+                if (newSeats < 0) newSeats = 0;
+                onSeatsChange(guest.id, tableId, newSeats);
+            };
+            return (
+                <div className="flex items-center space-x-1 text-indigo-600 select-none">
+                    <UserIcon className="w-5 h-5" />
+                    <button onClick={(e) => { e.stopPropagation(); adjust(-1); }} className="w-6 h-6 flex items-center justify-center bg-indigo-200 text-indigo-800 rounded-full">-</button>
+                    <span className="w-8 text-center font-bold text-lg">{assignedSeats}</span>
+                    <button onClick={(e) => { e.stopPropagation(); adjust(1); }} className="w-6 h-6 flex items-center justify-center bg-indigo-200 text-indigo-800 rounded-full">+</button>
                 </div>
             );
         };
@@ -308,7 +329,7 @@
             );
         };
 
-        const ReservationDetailsModal = ({ table, guests, assignments, tables, onClose, onUnassign, onReassign, onSizeChange, onUnmerge }) => {
+        const ReservationDetailsModal = ({ table, guests, assignments, tables, onClose, onUnassign, onReassign, onSizeChange, onSeatsChange, onUnmerge }) => {
             if (!table) return null;
             const sortedGuests = guests.slice().sort((a,b) => a.guest.name.localeCompare(b.guest.name, undefined, {sensitivity: 'base'}));
             return (
@@ -321,13 +342,16 @@
                                     <div className="flex justify-between items-start">
                                         <h3 className="font-bold text-lg text-gray-900">{item.guest.name}</h3>
                                         <div className="flex flex-wrap items-center gap-2">
-                                            <EditablePartySize guest={item.guest} onSizeChange={onSizeChange} />
+                                            <EditableAssignedSeats guest={item.guest} tableId={table.internalId} assignedSeats={item.assignedSeats} onSeatsChange={onSeatsChange} />
                                             <button onClick={() => onReassign(item.guest.id)} className="bg-green-500 text-white text-xs font-bold px-2 py-1 rounded hover:bg-green-600">Reassign</button>
                                             <button onClick={() => onUnassign(item.guest.id)} className="bg-red-500 text-white text-xs font-bold px-2 py-1 rounded hover:bg-red-600">Unassign</button>
                                             {item.guest.mergedFrom && <button onClick={() => onUnmerge(item.guest.id)} className="bg-yellow-500 text-white text-xs font-bold px-2 py-1 rounded hover:bg-yellow-600">Unmerge</button>}
                                         </div>
                                     </div>
-                                    <p className="text-gray-600 text-sm">Seats at this table: {item.assignedSeats} of {item.guest.size}</p>
+                                    <div className="text-gray-600 text-sm mt-1 flex items-center gap-1">
+                                        <span>Total party size:</span>
+                                        <EditablePartySize guest={item.guest} onSizeChange={onSizeChange} />
+                                    </div>
                                     {(() => { const parts = assignments[item.guest.id] || []; const others = parts.filter(p => p.tableId !== table.internalId); if (others.length > 0) { const names = others.map(p => { const t = tables.find(tt => tt.internalId === p.tableId); return `${t ? t.displayId : p.tableId} (${p.seats})`; }).join(', '); return <p className="text-gray-600 text-xs">Others at table{others.length>1?'s':''} {names}</p>; } return null; })()}
                                     {item.guest.notes && <p className="text-gray-600 mt-2 whitespace-pre-wrap"><strong>Notes:</strong> {item.guest.notes}</p>}
                                 </div>
@@ -939,6 +963,67 @@
                 }
             };
 
+            const handleAssignedSeatsChange = (guestId, tableId, newSeats) => {
+                let seats = parseInt(newSeats, 10);
+                if (isNaN(seats) || seats < 0) seats = 0;
+                const guest = guests.find(g => g.id === guestId);
+                const table = tables.find(t => t.internalId === tableId);
+                if (!guest || !table) return;
+
+                const parts = assignments[guestId] || [];
+                const otherParts = parts.filter(p => p.tableId !== tableId);
+                const otherAssigned = otherParts.reduce((sum, p) => sum + p.seats, 0);
+                const tableData = tableAssignments[tableId];
+                const currentAtTable = parts.find(p => p.tableId === tableId)?.seats || 0;
+                const maxByTable = tableData ? tableData.remainingSeats + currentAtTable : table.capacity;
+                const maxByGuest = guest.size - otherAssigned;
+                seats = Math.min(seats, maxByTable);
+
+                if (seats > maxByGuest) {
+                    const needed = seats - maxByGuest;
+                    if (otherParts.length === 0) {
+                        window.alert('No other tables to move guests from.');
+                        seats = maxByGuest;
+                    } else {
+                        let source;
+                        if (otherParts.length === 1) {
+                            const t = tables.find(t => t.internalId === otherParts[0].tableId);
+                            if (!window.confirm(`To seat ${seats} here, move ${needed} from table ${t ? t.displayId || t.name || t.internalId : otherParts[0].tableId}. Continue?`)) return;
+                            source = otherParts[0];
+                        } else {
+                            if (!window.confirm(`To seat ${seats} here, move ${needed} from another table. Continue?`)) return;
+                            const options = otherParts.map((p, i) => {
+                                const t = tables.find(t => t.internalId === p.tableId);
+                                return `${i + 1}: ${(t ? t.displayId || t.name || t.internalId : p.tableId)} (${p.seats})`;
+                            }).join('\n');
+                            const choice = parseInt(window.prompt(`Move from which table?\n${options}`), 10) - 1;
+                            if (isNaN(choice) || choice < 0 || choice >= otherParts.length) return;
+                            source = otherParts[choice];
+                        }
+                        const move = Math.min(source.seats, needed);
+                        seats = Math.min(seats, maxByGuest + move);
+                        const finalMove = seats - maxByGuest;
+                        const updatedParts = [
+                            ...otherParts.map(p => p.tableId === source.tableId ? { tableId: p.tableId, seats: p.seats - finalMove } : p).filter(p => p.seats > 0),
+                            ...(seats > 0 ? [{ tableId, seats }] : [])
+                        ];
+                        setAssignments(prev => {
+                            const updated = { ...prev, [guestId]: updatedParts };
+                            if (updatedParts.length === 0) delete updated[guestId];
+                            return updated;
+                        });
+                        return;
+                    }
+                }
+
+                const newParts = seats > 0 ? [...otherParts, { tableId, seats }] : otherParts;
+                setAssignments(prev => {
+                    const updated = { ...prev, [guestId]: newParts };
+                    if (newParts.length === 0) delete updated[guestId];
+                    return updated;
+                });
+            };
+
             const handleConfirmDelete = () => {
                 const { guestId } = confirmModalState;
                 if (!guestId) return;
@@ -1132,7 +1217,7 @@
                     >
                         Are you sure you want to remove the party "<strong>{guestToConfirm?.name}</strong>"? This action cannot be undone.
                     </ConfirmationModal>
-                    <ReservationDetailsModal table={modalTable} guests={modalGuests} assignments={assignments} tables={tables} onClose={() => setModalData(null)} onUnassign={handleUnassignInModal} onReassign={handleReassignInModal} onSizeChange={handleGuestSizeChange} onUnmerge={openUnmergeModal} />
+                    <ReservationDetailsModal table={modalTable} guests={modalGuests} assignments={assignments} tables={tables} onClose={() => setModalData(null)} onUnassign={handleUnassignInModal} onReassign={handleReassignInModal} onSizeChange={handleGuestSizeChange} onSeatsChange={handleAssignedSeatsChange} onUnmerge={openUnmergeModal} />
                     {unmergeModalState.isOpen && unmergeGuest && (
                         <ConfirmationModal
                             isOpen={true}
