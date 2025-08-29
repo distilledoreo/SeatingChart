@@ -51,8 +51,8 @@
     </style>
 </head>
 <body>
-    <div id="splash" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-white hidden">
-        <img src="Adjust%20Multi-Table%20Parties.gif" alt="Adjust Multi-Table Parties animation" class="max-w-xs w-full h-auto" />
+    <div id="splash" class="fixed inset-0 flex flex-col items-center justify-center bg-white hidden" style="z-index: 9999;">
+        <img src="Adjust Multi-Table Parties.gif" alt="Adjust Multi-Table Parties animation" class="max-w-xs w-full h-auto" />
         <button id="splashSkip" class="mt-4 px-4 py-2 bg-indigo-600 text-white rounded">Skip</button>
     </div>
 
@@ -74,7 +74,6 @@
                 localStorage.setItem('sawSplash', 'true');
             };
             skipBtn.addEventListener('click', dismiss);
-            setTimeout(dismiss, 4000);
         })();
     </script>
 
