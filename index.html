@@ -992,14 +992,51 @@
                 const guest = guests.find(g => g.id === guestId);
                 const table = tables.find(t => t.internalId === tableId);
                 if (!guest || !table) return;
+
                 const parts = assignments[guestId] || [];
-                const otherAssigned = parts.filter(p => p.tableId !== tableId).reduce((sum, p) => sum + p.seats, 0);
+                const otherParts = parts.filter(p => p.tableId !== tableId);
+                const otherAssigned = otherParts.reduce((sum, p) => sum + p.seats, 0);
                 const tableData = tableAssignments[tableId];
                 const currentAtTable = parts.find(p => p.tableId === tableId)?.seats || 0;
                 const maxByTable = tableData ? tableData.remainingSeats + currentAtTable : table.capacity;
                 const maxByGuest = guest.size - otherAssigned;
-                seats = Math.min(seats, maxByTable, maxByGuest);
-                const newParts = seats > 0 ? [...parts.filter(p => p.tableId !== tableId), { tableId, seats }] : parts.filter(p => p.tableId !== tableId);
+                seats = Math.min(seats, maxByTable);
+
+                if (seats > maxByGuest) {
+                    const needed = seats - maxByGuest;
+                    if (otherParts.length === 0) {
+                        window.alert('No other tables to move guests from.');
+                        seats = maxByGuest;
+                    } else if (window.confirm(`To seat ${seats} here, move ${needed} from another table. Continue?`)) {
+                        const options = otherParts.map(p => {
+                            const t = tables.find(t => t.internalId === p.tableId);
+                            return `${t.name || t.internalId} (${p.seats})`;
+                        }).join('\n');
+                        const fromName = window.prompt(`Move from which table?\n${options}`);
+                        const source = otherParts.find(p => {
+                            const t = tables.find(t => t.internalId === p.tableId);
+                            return (t.name || t.internalId) === fromName;
+                        });
+                        if (!source) return;
+                        const move = Math.min(source.seats, needed);
+                        seats = Math.min(seats, maxByGuest + move);
+                        const finalMove = seats - maxByGuest;
+                        const updatedParts = [
+                            ...otherParts.map(p => p.tableId === source.tableId ? { tableId: p.tableId, seats: p.seats - finalMove } : p).filter(p => p.seats > 0),
+                            ...(seats > 0 ? [{ tableId, seats }] : [])
+                        ];
+                        setAssignments(prev => {
+                            const updated = { ...prev, [guestId]: updatedParts };
+                            if (updatedParts.length === 0) delete updated[guestId];
+                            return updated;
+                        });
+                        return;
+                    } else {
+                        return;
+                    }
+                }
+
+                const newParts = seats > 0 ? [...otherParts, { tableId, seats }] : otherParts;
                 setAssignments(prev => {
                     const updated = { ...prev, [guestId]: newParts };
                     if (newParts.length === 0) delete updated[guestId];
