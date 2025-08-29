@@ -106,6 +106,50 @@
             );
         };
 
+        const EditableAssignedSeats = ({ guest, tableId, assignedSeats, onSeatsChange }) => {
+            const [isEditing, setIsEditing] = useState(false);
+            const [seats, setSeats] = useState(assignedSeats);
+            const inputRef = useRef(null);
+
+            useEffect(() => {
+                if (isEditing && inputRef.current) {
+                    inputRef.current.select();
+                }
+            }, [isEditing]);
+
+            useEffect(() => {
+                if (!isEditing) {
+                    setSeats(assignedSeats);
+                }
+            }, [assignedSeats, isEditing]);
+
+            const handleSave = () => {
+                setIsEditing(false);
+                const newSeats = parseInt(seats, 10);
+                if (!isNaN(newSeats) && newSeats >= 0 && newSeats !== assignedSeats) {
+                    onSeatsChange(guest.id, tableId, newSeats);
+                } else {
+                    setSeats(assignedSeats);
+                }
+            };
+
+            const handleKeyDown = (e) => {
+                if (e.key === 'Enter') handleSave();
+                else if (e.key === 'Escape') { setSeats(assignedSeats); setIsEditing(false); }
+            };
+
+            return (
+                <div className="flex items-center space-x-1 text-indigo-600">
+                    <UserIcon className="w-5 h-5" />
+                    {isEditing ? (
+                        <input ref={inputRef} autoFocus type="number" value={seats} onChange={e => setSeats(e.target.value)} onBlur={handleSave} onKeyDown={handleKeyDown} className="w-12 text-center font-bold text-lg bg-white border border-indigo-300 rounded" min="0" />
+                    ) : (
+                        <span className="font-bold text-lg cursor-pointer px-2 py-1 rounded hover:bg-indigo-100" onClick={e => { e.stopPropagation(); setIsEditing(true); }}>{assignedSeats}</span>
+                    )}
+                </div>
+            );
+        };
+
 
         const EditableNote = ({ guest, onNotesChange }) => {
 
@@ -308,7 +352,7 @@
             );
         };
 
-        const ReservationDetailsModal = ({ table, guests, assignments, tables, onClose, onUnassign, onReassign, onSizeChange, onUnmerge }) => {
+        const ReservationDetailsModal = ({ table, guests, assignments, tables, onClose, onUnassign, onReassign, onSizeChange, onSeatsChange, onUnmerge }) => {
             if (!table) return null;
             const sortedGuests = guests.slice().sort((a,b) => a.guest.name.localeCompare(b.guest.name, undefined, {sensitivity: 'base'}));
             return (
@@ -321,13 +365,16 @@
                                     <div className="flex justify-between items-start">
                                         <h3 className="font-bold text-lg text-gray-900">{item.guest.name}</h3>
                                         <div className="flex flex-wrap items-center gap-2">
-                                            <EditablePartySize guest={item.guest} onSizeChange={onSizeChange} />
+                                            <EditableAssignedSeats guest={item.guest} tableId={table.internalId} assignedSeats={item.assignedSeats} onSeatsChange={onSeatsChange} />
                                             <button onClick={() => onReassign(item.guest.id)} className="bg-green-500 text-white text-xs font-bold px-2 py-1 rounded hover:bg-green-600">Reassign</button>
                                             <button onClick={() => onUnassign(item.guest.id)} className="bg-red-500 text-white text-xs font-bold px-2 py-1 rounded hover:bg-red-600">Unassign</button>
                                             {item.guest.mergedFrom && <button onClick={() => onUnmerge(item.guest.id)} className="bg-yellow-500 text-white text-xs font-bold px-2 py-1 rounded hover:bg-yellow-600">Unmerge</button>}
                                         </div>
                                     </div>
-                                    <p className="text-gray-600 text-sm">Seats at this table: {item.assignedSeats} of {item.guest.size}</p>
+                                    <div className="text-gray-600 text-sm mt-1 flex items-center gap-1">
+                                        <span>Total party size:</span>
+                                        <EditablePartySize guest={item.guest} onSizeChange={onSizeChange} />
+                                    </div>
                                     {(() => { const parts = assignments[item.guest.id] || []; const others = parts.filter(p => p.tableId !== table.internalId); if (others.length > 0) { const names = others.map(p => { const t = tables.find(tt => tt.internalId === p.tableId); return `${t ? t.displayId : p.tableId} (${p.seats})`; }).join(', '); return <p className="text-gray-600 text-xs">Others at table{others.length>1?'s':''} {names}</p>; } return null; })()}
                                     {item.guest.notes && <p className="text-gray-600 mt-2 whitespace-pre-wrap"><strong>Notes:</strong> {item.guest.notes}</p>}
                                 </div>
@@ -939,6 +986,27 @@
                 }
             };
 
+            const handleAssignedSeatsChange = (guestId, tableId, newSeats) => {
+                let seats = parseInt(newSeats, 10);
+                if (isNaN(seats) || seats < 0) seats = 0;
+                const guest = guests.find(g => g.id === guestId);
+                const table = tables.find(t => t.internalId === tableId);
+                if (!guest || !table) return;
+                const parts = assignments[guestId] || [];
+                const otherAssigned = parts.filter(p => p.tableId !== tableId).reduce((sum, p) => sum + p.seats, 0);
+                const tableData = tableAssignments[tableId];
+                const currentAtTable = parts.find(p => p.tableId === tableId)?.seats || 0;
+                const maxByTable = tableData ? tableData.remainingSeats + currentAtTable : table.capacity;
+                const maxByGuest = guest.size - otherAssigned;
+                seats = Math.min(seats, maxByTable, maxByGuest);
+                const newParts = seats > 0 ? [...parts.filter(p => p.tableId !== tableId), { tableId, seats }] : parts.filter(p => p.tableId !== tableId);
+                setAssignments(prev => {
+                    const updated = { ...prev, [guestId]: newParts };
+                    if (newParts.length === 0) delete updated[guestId];
+                    return updated;
+                });
+            };
+
             const handleConfirmDelete = () => {
                 const { guestId } = confirmModalState;
                 if (!guestId) return;
@@ -1132,7 +1200,7 @@
                     >
                         Are you sure you want to remove the party "<strong>{guestToConfirm?.name}</strong>"? This action cannot be undone.
                     </ConfirmationModal>
-                    <ReservationDetailsModal table={modalTable} guests={modalGuests} assignments={assignments} tables={tables} onClose={() => setModalData(null)} onUnassign={handleUnassignInModal} onReassign={handleReassignInModal} onSizeChange={handleGuestSizeChange} onUnmerge={openUnmergeModal} />
+                    <ReservationDetailsModal table={modalTable} guests={modalGuests} assignments={assignments} tables={tables} onClose={() => setModalData(null)} onUnassign={handleUnassignInModal} onReassign={handleReassignInModal} onSizeChange={handleGuestSizeChange} onSeatsChange={handleAssignedSeatsChange} onUnmerge={openUnmergeModal} />
                     {unmergeModalState.isOpen && unmergeGuest && (
                         <ConfirmationModal
                             isOpen={true}
