@@ -168,7 +168,7 @@
             };
 
             return (
-                <div className="mt-2 text-sm text-gray-700 w-full relative" onClick={(e) => e.stopPropagation()}>
+                <div className="mt-2 text-sm text-gray-700 w-full relative">
 
                     {isEditing ? (
                         <textarea
@@ -178,20 +178,23 @@
                             onChange={handleTextChange}
                             onBlur={handleSave}
                             onKeyDown={handleKeyDown}
+                            onClick={(e) => e.stopPropagation()}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onTouchStart={(e) => e.stopPropagation()}
                             className="w-full p-1 text-sm bg-white border border-indigo-300 rounded resize-none pr-6"
 
                             placeholder="Add a note..."
                             rows="1"
                         />
                     ) : (
-                        <div className={`w-full p-1 rounded min-h-[2.5rem] cursor-text whitespace-pre-wrap ${note ? 'text-gray-700' : 'text-gray-400 italic'}`}
+                        <div className={`w-full p-1 rounded min-h-[2.5rem] whitespace-pre-wrap select-none ${note ? 'text-gray-700' : 'text-gray-400 italic'}`}
                         >
                             {note || 'Add a note...'}
                         </div>
                     )}
                     {!isEditing && (
                         <button
-                            onClick={() => setIsEditing(true)}
+                            onClick={(e) => { e.stopPropagation(); setIsEditing(true); }}
                             className="absolute top-1 right-1 p-1 text-gray-500 hover:text-indigo-600"
                             title="Edit notes"
                         >
