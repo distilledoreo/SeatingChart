@@ -51,32 +51,7 @@
     </style>
 </head>
 <body>
-    <div id="splash" class="fixed inset-0 flex flex-col items-center justify-center bg-white hidden" style="z-index: 9999;">
-        <img src="Adjust Multi-Table Parties.gif" alt="Adjust Multi-Table Parties animation" class="max-w-xs w-full h-auto" />
-        <p class="mt-4 text-center text-gray-700 px-4">Easily move guests between tables using the new "+" and "-" buttons.</p>
-        <button id="splashSkip" class="mt-4 px-4 py-2 bg-indigo-600 text-white rounded">Skip</button>
-    </div>
-
     <div id="root"></div>
-
-    <script>
-        (function () {
-            const splash = document.getElementById('splash');
-            const skipBtn = document.getElementById('splashSkip');
-            const shouldShow = !localStorage.getItem('sawSplash') && !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-            if (!shouldShow) {
-                splash.remove();
-                return;
-            }
-            splash.classList.remove('hidden');
-            const dismiss = () => {
-                splash.classList.add('transition-opacity', 'duration-500', 'opacity-0');
-                splash.addEventListener('transitionend', () => splash.remove(), { once: true });
-                localStorage.setItem('sawSplash', 'true');
-            };
-            skipBtn.addEventListener('click', dismiss);
-        })();
-    </script>
 
     <script type="text/babel">
         const { useState, useMemo, useRef, useEffect } = React;
